@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>High Fidelity Smooth Growth L-System Tree</title>
+    <title>High Fidelity Balanced L-System Tree (Optimized)</title>
     <style>
       body {
         margin: 0;
@@ -274,25 +274,31 @@
           endPos,
         );
 
-        // --- SMOOTHNESS VERTEX UPGRADES ---
-        // Significantly bumped segments and radial configurations for depth 0 and 1
         let segments =
           currentDepth === 0
-            ? 48 // Trunk spine detail (was 16)
+            ? 48
             : currentDepth === 1
-              ? 28 // 1st level branch spine detail (was 10)
+              ? 28
               : currentDepth === 2
                 ? 10
-                : 6;
+                : currentDepth === 3
+                  ? 6
+                  : currentDepth === 4
+                    ? 3
+                    : 2;
 
         let radialSegments =
           currentDepth === 0
-            ? 24 // Trunk roundness profiles (was 12)
+            ? 24
             : currentDepth === 1
-              ? 16 // 1st level roundness profiles (was 8)
+              ? 16
               : currentDepth === 2
-                ? 6
-                : 4;
+                ? 8
+                : currentDepth === 3
+                  ? 6
+                  : currentDepth === 4
+                    ? 3
+                    : 3;
 
         const targetEndRadius =
           currentDepth === 0 ? radius * 0.45 : radius * 0.55;
@@ -307,12 +313,69 @@
         );
         treeGroup.add(branch);
 
-        // --- Leaves Engine ---
-        if (radius < 0.14 && growthFactor > 0.3) {
-          const leafGrowthScale = (growthFactor - 0.3) / 0.7;
-          const clumpsPerSegment = currentDepth === 3 ? 5 : 8;
+        const nextDepth = currentDepth + 1;
+        const nextLength = currentDepth === 0 ? length * 0.65 : length * 0.72;
+        const nextRadius = radius * 0.48;
 
-          // Scaled leaf steps relative to upgraded segment arrays to maintain accurate distributions
+        // --- Foliage Shoots spawn fine sub-twigs where leaves grow ---
+        if (currentDepth === 3 && growthFactor > 0.05) {
+          const fineAvailability = THREE.MathUtils.clamp(
+            (growthFactor - 0.05) / 0.45,
+            0.0,
+            1.0,
+          );
+
+          for (let k = 1; k <= segments; k++) {
+            const splitProgress = k / segments;
+            const splitOrigin = branchCurve.getPointAt(splitProgress);
+            const parentTangent = branchCurve.getTangentAt(splitProgress);
+
+            const seed = currentDepth * 3000 + k * 51.17;
+            const randAngle = Math.cos(seed * 0.7);
+
+            const goldenAngleStep = k * 2.39996 + randAngle * 0.3;
+            const pitch = 0.5;
+            const fineDir = new THREE.Vector3(
+              Math.cos(goldenAngleStep) * (1.0 - pitch),
+              pitch,
+              Math.sin(goldenAngleStep) * (1.0 - pitch),
+            ).normalize();
+
+            const parentRadiusAtSplit = THREE.MathUtils.lerp(
+              radius,
+              targetEndRadius,
+              splitProgress,
+            );
+            const generationDelay = 0.1;
+            const adjustedAvailability = THREE.MathUtils.clamp(
+              (fineAvailability - generationDelay) / (1.0 - generationDelay),
+              0,
+              1,
+            );
+            const localGrowth = Math.min(1.0, adjustedAvailability * 1.8);
+
+            generateLSystemTree(
+              splitOrigin,
+              fineDir,
+              nextLength * localGrowth,
+              nextRadius * Math.pow(localGrowth, 1.2),
+              nextDepth,
+              maxDepth,
+              growthFactor,
+              parentRadiusAtSplit,
+            );
+          }
+        }
+
+        // --- Leaves grow on the Fine Twigs (depth 4) ---
+        if (currentDepth === 4 && growthFactor > 0.05) {
+          const individualLeafGrowthScale = THREE.MathUtils.clamp(
+            (growthFactor - 0.05) / 0.45,
+            0.0,
+            1.0,
+          );
+          const clumpsPerSegment = 5;
+
           const stepDelta = Math.max(1, Math.floor(segments / 8));
 
           for (let k = 1; k <= segments; k += stepDelta) {
@@ -329,92 +392,88 @@
               heightScaleFactor = Math.sin(normalizedHeight * Math.PI);
             }
 
-            if (heightScaleFactor < 0.1) continue;
+            if (heightScaleFactor >= 0.1) {
+              let referenceUp = new THREE.Vector3(0, 1, 0);
+              if (Math.abs(branchForward.dot(referenceUp)) > 0.95)
+                referenceUp.set(1, 0, 0);
 
-            let referenceUp = new THREE.Vector3(0, 1, 0);
-            if (Math.abs(branchForward.dot(referenceUp)) > 0.95)
-              referenceUp.set(1, 0, 0);
+              const branchRight = new THREE.Vector3()
+                .crossVectors(branchForward, referenceUp)
+                .normalize();
+              const branchUp = new THREE.Vector3()
+                .crossVectors(branchRight, branchForward)
+                .normalize();
 
-            const branchRight = new THREE.Vector3()
-              .crossVectors(branchForward, referenceUp)
-              .normalize();
-            const branchUp = new THREE.Vector3()
-              .crossVectors(branchRight, branchForward)
-              .normalize();
+              for (let l = 0; l < clumpsPerSegment; l++) {
+                const seed =
+                  currentDepth * 4000 + (k * clumpsPerSegment + l) * 53.17;
+                const randA = Math.sin(seed * 0.5 + 0.5);
+                const randB = Math.cos(seed * 1.4) * 0.5 + 0.5;
 
-            for (let l = 0; l < clumpsPerSegment; l++) {
-              const seed =
-                currentDepth * 2000 + (k * clumpsPerSegment + l) * 53.17;
-              const randA = Math.sin(seed) * 0.5 + 0.5;
-              const randB = Math.cos(seed * 1.4) * 0.5 + 0.5;
-
-              const scatterAngle = (l / clumpsPerSegment) * Math.PI * 2;
-              const currentThickness = THREE.MathUtils.lerp(
-                radius,
-                targetEndRadius,
-                progress,
-              );
-              const spreadRadius = currentThickness * (1.2 + randB * 1.5);
-
-              const finalLeafPos = new THREE.Vector3()
-                .copy(leafPos)
-                .addScaledVector(
-                  branchRight,
-                  Math.cos(scatterAngle) * spreadRadius,
-                )
-                .addScaledVector(
-                  branchUp,
-                  Math.sin(scatterAngle) * spreadRadius,
+                const scatterAngle = (l / clumpsPerSegment) * Math.PI * 2;
+                const currentThickness = THREE.MathUtils.lerp(
+                  radius,
+                  targetEndRadius,
+                  progress,
                 );
+                const spreadRadius = currentThickness * (0.8 + randB * 1.1);
 
-              const outwardDir = new THREE.Vector3()
-                .addScaledVector(branchRight, Math.cos(scatterAngle))
-                .addScaledVector(branchUp, Math.sin(scatterAngle))
-                .normalize();
+                const finalLeafPos = new THREE.Vector3()
+                  .copy(leafPos)
+                  .addScaledVector(
+                    branchRight,
+                    Math.cos(scatterAngle) * spreadRadius,
+                  )
+                  .addScaledVector(
+                    branchUp,
+                    Math.sin(scatterAngle) * spreadRadius,
+                  );
 
-              const clumpForward = new THREE.Vector3()
-                .copy(outwardDir)
-                .multiplyScalar(0.8)
-                .addScaledVector(branchForward, 0.2)
-                .add(new THREE.Vector3(0, -0.15, 0))
-                .normalize();
+                const outwardDir = new THREE.Vector3()
+                  .addScaledVector(branchRight, Math.cos(scatterAngle))
+                  .addScaledVector(branchUp, Math.sin(scatterAngle))
+                  .normalize();
 
-              let clumpUp = new THREE.Vector3(0, 1, 0);
-              if (Math.abs(clumpForward.dot(clumpUp)) > 0.95)
-                clumpUp.set(1, 0, 0);
-              const clumpRight = new THREE.Vector3()
-                .crossVectors(clumpForward, clumpUp)
-                .normalize();
-              clumpUp.crossVectors(clumpRight, clumpForward).normalize();
+                const clumpForward = new THREE.Vector3()
+                  .copy(outwardDir)
+                  .multiplyScalar(0.8)
+                  .addScaledVector(branchForward, 0.2)
+                  .add(new THREE.Vector3(0, -0.15, 0))
+                  .normalize();
 
-              const matrix = new THREE.Matrix4();
-              matrix.makeBasis(clumpRight, clumpUp, clumpForward);
-              matrix.setPosition(finalLeafPos);
+                let clumpUp = new THREE.Vector3(0, 1, 0);
+                if (Math.abs(clumpForward.dot(clumpUp)) > 0.95)
+                  clumpUp.set(1, 0, 0);
+                const clumpRight = new THREE.Vector3()
+                  .crossVectors(clumpForward, clumpUp)
+                  .normalize();
+                clumpUp.crossVectors(clumpRight, clumpForward).normalize();
 
-              const finalScale =
-                (0.35 + randA * 0.4) *
-                leafGrowthScale *
-                heightScaleFactor *
-                1.5;
-              const scaleMatrix = new THREE.Matrix4().makeScale(
-                finalScale,
-                finalScale,
-                finalScale,
-              );
-              matrix.multiply(scaleMatrix);
+                const matrix = new THREE.Matrix4();
+                matrix.makeBasis(clumpRight, clumpUp, clumpForward);
+                matrix.setPosition(finalLeafPos);
 
-              leafTransforms.push(matrix.clone());
+                const finalScale =
+                  (0.35 + randA * 0.4) *
+                  individualLeafGrowthScale *
+                  heightScaleFactor *
+                  1.38;
+                const scaleMatrix = new THREE.Matrix4().makeScale(
+                  finalScale,
+                  finalScale,
+                  finalScale,
+                );
+                matrix.multiply(scaleMatrix);
+
+                leafTransforms.push(matrix.clone());
+              }
             }
           }
         }
 
-        const nextDepth = currentDepth + 1;
-        const nextLength = currentDepth === 0 ? length * 0.65 : length * 0.72;
-        const nextRadius = radius * 0.48;
-
-        // --- Structural Branch Splits ---
-        if (currentDepth === 0 && growthFactor > 0.05) {
-          const branchAvailability = (growthFactor - 0.05) / 0.95;
+        // --- Core Branching Architecture Splits ---
+        if (currentDepth === 0 && growthFactor > 0.01) {
+          const branchAvailability = (growthFactor - 0.01) / 0.99;
           const numSplits = 12;
 
           for (let i = 0; i < numSplits; i++) {
@@ -447,7 +506,7 @@
               splitProgress,
             );
 
-            const generationDelay = (i / numSplits) * 0.25;
+            const generationDelay = (i / numSplits) * 0.15;
             const adjustedAvailability = THREE.MathUtils.clamp(
               (branchAvailability - generationDelay) / (1.0 - generationDelay),
               0,
@@ -470,8 +529,8 @@
           }
         }
 
-        if (currentDepth === 1 && growthFactor > 0.25) {
-          const twigAvailability = (growthFactor - 0.25) / 0.75;
+        if (currentDepth === 1 && growthFactor > 0.12) {
+          const twigAvailability = (growthFactor - 0.12) / 0.88;
           const numTwigs = 3;
           for (let i = 0; i < numTwigs; i++) {
             const splitProgress = 0.35 + i * 0.2;
@@ -510,8 +569,8 @@
           }
         }
 
-        if (currentDepth === 2 && growthFactor > 0.45) {
-          const foliageAvailability = (growthFactor - 0.45) / 0.55;
+        if (currentDepth === 2 && growthFactor > 0.22) {
+          const foliageAvailability = (growthFactor - 0.22) / 0.78;
           const numShoots = 3;
           for (let i = 0; i < numShoots; i++) {
             const splitProgress = 0.4 + i * 0.22;
@@ -546,60 +605,27 @@
             );
           }
         }
-
-        if (currentDepth === 3 && growthFactor > 0.65) {
-          const crownAvailability = (growthFactor - 0.65) / 0.35;
-          const numFineTwigs = 4;
-          for (let i = 0; i < numFineTwigs; i++) {
-            const splitProgress = 0.3 + i * 0.2;
-            const splitOrigin = branchCurve.getPointAt(splitProgress);
-            const parentTangent = branchCurve.getTangentAt(splitProgress);
-
-            const angle = (i / numFineTwigs) * Math.PI * 2;
-            const fineDir = new THREE.Vector3(
-              Math.cos(angle) * 0.8,
-              0.6,
-              Math.sin(angle) * 0.8,
-            ).normalize();
-            const shootDir = new THREE.Vector3()
-              .copy(parentTangent)
-              .addScaledVector(fineDir, 0.5)
-              .normalize();
-
-            const parentRadiusAtSplit = THREE.MathUtils.lerp(
-              radius,
-              targetEndRadius,
-              splitProgress,
-            );
-            const localCrownGrowth = Math.min(1.0, crownAvailability * 2.0);
-            generateLSystemTree(
-              splitOrigin,
-              shootDir,
-              nextLength * localCrownGrowth,
-              nextRadius * Math.pow(localCrownGrowth, 1.2),
-              nextDepth,
-              maxDepth,
-              growthFactor,
-              parentRadiusAtSplit,
-            );
-          }
-        }
       }
 
       // --- Refresh Loop ---
-      function updateTree(growth) {
+      function updateTree(sliderVal) {
         treeGroup.children.forEach((child) => {
           if (child.geometry) child.geometry.dispose();
         });
         treeGroup.clear();
         leafTransforms = [];
 
+        // OPTIMIZATION: Remap 0-100% slider inputs to stay safely within your perfect 0.0 - 0.62 structural zone
+        const calculatedInternalGrowth = sliderVal * 0.62;
+
         const baseTrunkStart = new THREE.Vector3(0, -7, 0);
         const baseTrunkDir = new THREE.Vector3(0, 1, 0).normalize();
 
         const baseTrunkMaxLen = 9.5;
-        const currentTrunkLen = baseTrunkMaxLen * Math.min(1.0, growth * 1.5);
-        const currentTrunkRadius = 0.85 * Math.log1p(growth * 1.5);
+        const currentTrunkLen =
+          baseTrunkMaxLen * Math.min(1.0, calculatedInternalGrowth * 1.5);
+        const currentTrunkRadius =
+          0.85 * Math.log1p(calculatedInternalGrowth * 1.5);
 
         generateLSystemTree(
           baseTrunkStart,
@@ -607,8 +633,8 @@
           currentTrunkLen,
           currentTrunkRadius,
           0,
-          4,
-          growth,
+          5,
+          calculatedInternalGrowth,
         );
 
         if (leafTransforms.length > 0) {
