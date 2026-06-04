@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>High Fidelity Balanced L-System Tree (Performance Tracked)</title>
+    <title>High Fidelity Textured L-System Tree with HDR</title>
     <style>
       body {
         margin: 0;
@@ -33,7 +33,6 @@
         z-index: 10;
       }
 
-      /* Performance Overlay Styles */
       #perf-monitor {
         position: absolute;
         top: 20px;
@@ -81,9 +80,9 @@
       }
 
       .stage-btn.active {
-        background: #3b82f6;
-        border-color: #60a5fa;
-        box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        background: #22c55e;
+        border-color: #4ade80;
+        box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
       }
     </style>
   </head>
@@ -122,54 +121,187 @@
       import * as THREE from "three";
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
       import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+      import { Sky } from "three/addons/objects/Sky.js";
+      import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
 
       // --- Performance Dom Elements ---
       const fpsValEl = document.getElementById("fps-val");
       const rebuildValEl = document.getElementById("rebuild-val");
 
+      // --- Global Animation and Growth State Management ---
+      let targetGrowth = 0.0;
+      let currentGrowth = 0.0;
+      const growthStep = 0.015;
+      let lastFpsUpdate = 0;
+      let framesCount = 0;
+
       // --- Scene Setup ---
       const scene = new THREE.Scene();
+
       const camera = new THREE.PerspectiveCamera(
         60,
         window.innerWidth / window.innerHeight,
         0.1,
-        1000,
+        2000000,
       );
-      camera.position.set(0, 2, 24);
+      camera.position.set(0, 4, 22);
 
       const renderer = new THREE.WebGLRenderer({ antialias: true });
       renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      // Configure renderer tone mapping for beautiful HDR presentation
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.5;
       document.body.appendChild(renderer.domElement);
 
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
-      controls.target.set(0, 2, 0);
+      controls.target.set(0, 3, 0);
 
-      const gridHelper = new THREE.GridHelper(30, 30, 0x444444, 0x222222);
-      gridHelper.position.y = -7;
-      scene.add(gridHelper);
+      // --- Sky and Sun Setup ---
+      const sky = new Sky();
+      sky.scale.setScalar(450000);
+      scene.add(sky);
 
-      const trunkMaterial = new THREE.MeshNormalMaterial({
-        side: THREE.DoubleSide,
+      // --- Studio Shadow Caster ---
+      // We keep the sun light exclusively to drop rich, sharp geometric shadows onto the floor
+      const sunLight = new THREE.DirectionalLight("#fff3e3", 5.0); // Increased significantly for 0.175 exposure
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.width = 4096;
+      sunLight.shadow.mapSize.height = 4096;
+      sunLight.shadow.camera.left = -25;
+      sunLight.shadow.camera.right = 25;
+      sunLight.shadow.camera.top = 25;
+      sunLight.shadow.camera.bottom = -25;
+      sunLight.shadow.camera.near = 0.5;
+      sunLight.shadow.camera.far = 200;
+      sunLight.shadow.bias = -0.0005;
+      scene.add(sunLight);
+
+      // Add a base ambient light to prevent pitch black shadows
+      const ambLight = new THREE.AmbientLight("#ffffff", 0.8);
+      scene.add(ambLight);
+
+      const sun = new THREE.Vector3();
+
+      const effectController = {
+        turbidity: 10,
+        rayleigh: 3,
+        mieCoefficient: 0.005,
+        mieDirectionalG: 0.7,
+        elevation: 90,
+        azimuth: 180,
+        exposure: 0.175,
+      };
+
+      function updateSky() {
+        const uniforms = sky.material.uniforms;
+        uniforms["turbidity"].value = effectController.turbidity;
+        uniforms["rayleigh"].value = effectController.rayleigh;
+        uniforms["mieCoefficient"].value = effectController.mieCoefficient;
+        uniforms["mieDirectionalG"].value = effectController.mieDirectionalG;
+
+        const phi = THREE.MathUtils.degToRad(90 - effectController.elevation);
+        const theta = THREE.MathUtils.degToRad(effectController.azimuth);
+
+        sun.setFromSphericalCoords(1, phi, theta);
+        uniforms["sunPosition"].value.copy(sun);
+
+        renderer.toneMappingExposure = effectController.exposure;
+
+        if (sunLight) {
+          sunLight.position.copy(sun).multiplyScalar(100);
+        }
+      }
+
+      updateSky();
+
+      // --- Environment Map Loading ---
+      const rgbeLoader = new RGBELoader();
+      rgbeLoader.load("rainforest.hdr", function (texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.environment = texture; // Applies the lighting globally to PBR materials
+
+        // Optional: If you want to see the actual rainforest image behind the tree, uncomment below:
+        // scene.background = texture;
       });
-      const leafMaterial = new THREE.MeshNormalMaterial({
-        side: THREE.DoubleSide,
+
+      const groundGeo = new THREE.PlaneGeometry(60, 60);
+      const groundMat = new THREE.MeshStandardMaterial({
+        color: "#ff0000", // Lightened from #111622 to be visible at 0.175 exposure
+        roughness: 0.9,
+      });
+      const ground = new THREE.Mesh(groundGeo, groundMat);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -7;
+      ground.receiveShadow = true;
+      scene.add(ground);
+
+      // --- Procedural Asset Texturing Base Builders ---
+      function createProceduralBarkTexture() {
+        const canvas = document.createElement("canvas");
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#3a2618";
+        ctx.fillRect(0, 0, 512, 512);
+
+        // Render natural striations
+        for (let i = 0; i < 800; i++) {
+          const x = Math.random() * 512;
+          const y = Math.random() * 512;
+          const w = 4 + Math.random() * 12;
+          const h = 40 + Math.random() * 120;
+          ctx.fillStyle = Math.random() > 0.5 ? "#2c1c11" : "#463020";
+          ctx.fillRect(x, y, w, h);
+          if (x + w > 512) ctx.fillRect(x - 512, y, w, h);
+          if (y + h > 512) ctx.fillRect(x, y - 512, w, h);
+        }
+
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.repeat.set(1, 4);
+        return texture;
+      }
+
+      const barkTexture = createProceduralBarkTexture();
+
+      // --- Tree Material Assets (Optimized for HDR Bounces) ---
+      const trunkMaterial = new THREE.MeshStandardMaterial({
+        map: barkTexture,
+        bumpMap: barkTexture,
+        bumpScale: 0.05,
+        roughness: 0.85,
+        metalness: 0.0,
+        envMapIntensity: 0.9, // Subtle environmental glare on trunk bark
       });
 
-      // --- Animation & FPS Tracking States ---
-      let currentGrowth = 0.0;
-      let targetGrowth = 0.0;
-      const growthStep = 0.02;
+      const leafMaterial = new THREE.MeshStandardMaterial({
+        roughness: 0.45, // Makes leaf surface slightly glossy to catch light highlights
+        metalness: 0.0,
+        side: THREE.DoubleSide,
+        shadowSide: THREE.DoubleSide,
+        envMapIntensity: 1.35, // Boosts the impact of the rich rainforest ambient light strings
+      });
 
-      let lastFpsUpdate = 0;
-      let framesCount = 0;
+      // --- Leaf Cluster Color Palette Range ---
+      const leafPalettes = [
+        new THREE.Color("#245c32"), // Deep Jungle Green
+        new THREE.Color("#3b8c4c"), // Vibrant Mid Green
+        new THREE.Color("#5ea351"), // Young Lime Shoot
+        new THREE.Color("#4a7c59"), // Sage Cover
+        new THREE.Color("#a89744"), // Soft Golden Accent
+      ];
 
       // --- Shared Low-Poly Cylinder Asset for Deep Branches ---
       const baseCylinderGeo = new THREE.CylinderGeometry(
         0.55,
         1,
         1,
-        4,
+        5,
         1,
         false,
       );
@@ -185,6 +317,15 @@
         baseLeafShape.quadraticCurveTo(-0.15, 0.15, 0, 0);
 
         const singleLeafGeo = new THREE.ShapeGeometry(baseLeafShape);
+
+        const posAttr = singleLeafGeo.attributes.position;
+        const uvs = new Float32Array(posAttr.count * 2);
+        for (let i = 0; i < posAttr.count; i++) {
+          uvs[i * 2] = (posAttr.getX(i) + 0.15) / 0.3;
+          uvs[i * 2 + 1] = posAttr.getY(i) / 0.85;
+        }
+        singleLeafGeo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+
         const leafGeometries = [];
         const numLeavesInClump = 6;
 
@@ -224,9 +365,20 @@
       const treeGroup = new THREE.Group();
       scene.add(treeGroup);
 
+      // --- Memory Optimization Vectors/Cache Scope ---
       let leafTransforms = [];
+      let leafColors = [];
       let branchGeometries = [];
       let instancedTwigTransforms = [];
+
+      const _vertex = new THREE.Vector3();
+      const _radialDir = new THREE.Vector3();
+      const _centerPoint = new THREE.Vector3();
+      const _upRef = new THREE.Vector3(0, 1, 0);
+      const _scratchVec1 = new THREE.Vector3();
+      const _scratchVec2 = new THREE.Vector3();
+      const _scratchQuat = new THREE.Quaternion();
+      const _scratchScale = new THREE.Vector3();
 
       // --- Pure Tube Geometry Generator ---
       function createBranchGeometry(
@@ -246,7 +398,6 @@
           false,
         );
         const positionAttribute = geometry.attributes.position;
-        const vertex = new THREE.Vector3();
         const targetBaseRadius =
           startRadius + (parentRadius - startRadius) * 0.45;
 
@@ -275,22 +426,21 @@
             actualRadius *= pinchFactor;
           }
 
-          const centerPoint = curve.getPointAt(progression);
+          curve.getPointAt(progression, _centerPoint);
 
           for (let j = 0; j <= radialSegments; j++) {
             const vertexIndex = i * (radialSegments + 1) + j;
             if (vertexIndex < positionAttribute.count) {
-              vertex.fromBufferAttribute(positionAttribute, vertexIndex);
-              const radialDir = new THREE.Vector3()
-                .copy(vertex)
-                .sub(centerPoint)
-                .normalize();
-              vertex.copy(centerPoint).addScaledVector(radialDir, actualRadius);
+              _vertex.fromBufferAttribute(positionAttribute, vertexIndex);
+              _radialDir.copy(_vertex).sub(_centerPoint).normalize();
+              _vertex
+                .copy(_centerPoint)
+                .addScaledVector(_radialDir, actualRadius);
               positionAttribute.setXYZ(
                 vertexIndex,
-                vertex.x,
-                vertex.y,
-                vertex.z,
+                _vertex.x,
+                _vertex.y,
+                _vertex.z,
               );
             }
           }
@@ -316,31 +466,31 @@
         const endPos = new THREE.Vector3()
           .copy(startPos)
           .addScaledVector(direction, length);
+
         let curveAxis = new THREE.Vector3(0, 1, 0).cross(direction).normalize();
         if (curveAxis.lengthSq() < 0.001) curveAxis.set(1, 0, 0);
+
         const secondaryAxis = new THREE.Vector3()
           .copy(curveAxis)
           .cross(direction)
           .normalize();
 
-        let cp1, cp2;
+        const cp1 = new THREE.Vector3();
+        const cp2 = new THREE.Vector3();
+
         if (currentDepth === 0) {
           const maxTrunkWobble = 2.2;
           const currentWobble = growthFactor * maxTrunkWobble;
 
-          cp1 = new THREE.Vector3()
-            .copy(startPos)
-            .addScaledVector(direction, length * 0.35);
-          cp2 = new THREE.Vector3()
+          cp1.copy(startPos).addScaledVector(direction, length * 0.35);
+          cp2
             .copy(startPos)
             .addScaledVector(direction, length * 0.7)
-            .add(new THREE.Vector3(currentWobble, 0, currentWobble * 0.5));
+            .add(_scratchVec1.set(currentWobble, 0, currentWobble * 0.5));
         } else {
           const proportionalOffset = length * 0.35;
-          cp1 = new THREE.Vector3()
-            .copy(startPos)
-            .addScaledVector(direction, length * 0.33);
-          cp2 = new THREE.Vector3()
+          cp1.copy(startPos).addScaledVector(direction, length * 0.33);
+          cp2
             .copy(startPos)
             .addScaledVector(direction, length * 0.66)
             .addScaledVector(curveAxis, proportionalOffset)
@@ -354,43 +504,31 @@
           endPos,
         );
 
-        let segments =
-          currentDepth === 0
-            ? 48
-            : currentDepth === 1
-              ? 28
-              : currentDepth === 2
-                ? 10
-                : currentDepth === 3
-                  ? 6
-                  : currentDepth === 4
-                    ? 3
-                    : 2;
-        let radialSegments =
-          currentDepth === 0
-            ? 24
-            : currentDepth === 1
-              ? 16
-              : currentDepth === 2
-                ? 8
-                : currentDepth === 3
-                  ? 6
-                  : currentDepth === 4
-                    ? 3
-                    : 3;
+        let segments = 2;
+        let radialSegments = 3;
+        if (currentDepth === 0) {
+          segments = 40;
+          radialSegments = 16;
+        } else if (currentDepth === 1) {
+          segments = 20;
+          radialSegments = 10;
+        } else if (currentDepth === 2) {
+          segments = 8;
+          radialSegments = 6;
+        } else if (currentDepth === 3) {
+          segments = 4;
+          radialSegments = 4;
+        }
 
         const targetEndRadius =
           currentDepth === 0 ? radius * 0.45 : radius * 0.55;
 
         if (currentDepth >= 4) {
           const matrix = new THREE.Matrix4();
-          const up = new THREE.Vector3(0, 1, 0);
-          const quaternion = new THREE.Quaternion().setFromUnitVectors(
-            up,
-            direction,
-          );
-          const scale = new THREE.Vector3(radius, length, radius);
-          matrix.compose(startPos, quaternion, scale);
+          _upRef.set(0, 1, 0);
+          _scratchQuat.setFromUnitVectors(_upRef, direction);
+          _scratchScale.set(radius, length, radius);
+          matrix.compose(startPos, _scratchQuat, _scratchScale);
           instancedTwigTransforms.push(matrix);
         } else {
           const branchGeo = createBranchGeometry(
@@ -463,7 +601,7 @@
             0.0,
             1.0,
           );
-          const clumpsPerSegment = 5;
+          const clumpsPerSegment = 4;
           const stepDelta = Math.max(1, Math.floor(segments / 8));
 
           for (let k = 1; k <= segments; k += stepDelta) {
@@ -481,14 +619,14 @@
             }
 
             if (heightScaleFactor >= 0.1) {
-              let referenceUp = new THREE.Vector3(0, 1, 0);
+              let referenceUp = _upRef.set(0, 1, 0);
               if (Math.abs(branchForward.dot(referenceUp)) > 0.95)
                 referenceUp.set(1, 0, 0);
 
-              const branchRight = new THREE.Vector3()
+              const branchRight = _scratchVec1
                 .crossVectors(branchForward, referenceUp)
                 .normalize();
-              const branchUp = new THREE.Vector3()
+              const branchUp = _scratchVec2
                 .crossVectors(branchRight, branchForward)
                 .normalize();
 
@@ -516,20 +654,23 @@
                     branchUp,
                     Math.sin(scatterAngle) * spreadRadius,
                   );
+
                 const outwardDir = new THREE.Vector3()
                   .addScaledVector(branchRight, Math.cos(scatterAngle))
                   .addScaledVector(branchUp, Math.sin(scatterAngle))
                   .normalize();
+
                 const clumpForward = new THREE.Vector3()
                   .copy(outwardDir)
                   .multiplyScalar(0.8)
                   .addScaledVector(branchForward, 0.2)
-                  .add(new THREE.Vector3(0, -0.15, 0))
+                  .add(_scratchVec1.set(0, -0.15, 0))
                   .normalize();
 
                 let clumpUp = new THREE.Vector3(0, 1, 0);
                 if (Math.abs(clumpForward.dot(clumpUp)) > 0.95)
                   clumpUp.set(1, 0, 0);
+
                 const clumpRight = new THREE.Vector3()
                   .crossVectors(clumpForward, clumpUp)
                   .normalize();
@@ -544,6 +685,7 @@
                   individualLeafGrowthScale *
                   heightScaleFactor *
                   1.38;
+
                 const scaleMatrix = new THREE.Matrix4().makeScale(
                   finalScale,
                   finalScale,
@@ -551,7 +693,15 @@
                 );
                 matrix.multiply(scaleMatrix);
 
-                leafTransforms.push(matrix.clone());
+                leafTransforms.push(matrix);
+
+                const selectedBaseColor =
+                  leafPalettes[Math.floor(randB * leafPalettes.length)];
+                const hueShift = (randA - 0.5) * 0.06;
+                const finalClumpColor = selectedBaseColor
+                  .clone()
+                  .offsetHSL(hueShift, 0, (randA - 0.5) * 0.1);
+                leafColors.push(finalClumpColor);
               }
             }
           }
@@ -693,7 +843,6 @@
 
       // --- Core Realtime Compiling Handler ---
       function rebuildTreeImmediate(growthValue) {
-        // Start High-Resolution Timer
         const startTime = performance.now();
 
         treeGroup.traverse((child) => {
@@ -709,9 +858,10 @@
         });
         treeGroup.clear();
 
-        leafTransforms = [];
-        branchGeometries = [];
-        instancedTwigTransforms = [];
+        leafTransforms.length = 0;
+        leafColors.length = 0;
+        branchGeometries.length = 0;
+        instancedTwigTransforms.length = 0;
 
         const calculatedInternalGrowth = growthValue * 0.62;
         const baseTrunkStart = new THREE.Vector3(0, -7, 0);
@@ -739,6 +889,8 @@
             mergedBranchGeometry,
             trunkMaterial,
           );
+          unifiedBranchMesh.castShadow = true;
+          unifiedBranchMesh.receiveShadow = true;
           treeGroup.add(unifiedBranchMesh);
           branchGeometries.forEach((geo) => geo.dispose());
         }
@@ -749,6 +901,8 @@
             trunkMaterial,
             instancedTwigTransforms.length,
           );
+          twigInstancedMesh.castShadow = true;
+          twigInstancedMesh.receiveShadow = true;
           for (let i = 0; i < instancedTwigTransforms.length; i++) {
             twigInstancedMesh.setMatrixAt(i, instancedTwigTransforms[i]);
           }
@@ -762,14 +916,18 @@
             leafMaterial,
             leafTransforms.length,
           );
+          leafInstancedMesh.castShadow = true;
+          leafInstancedMesh.receiveShadow = true;
           for (let i = 0; i < leafTransforms.length; i++) {
             leafInstancedMesh.setMatrixAt(i, leafTransforms[i]);
+            leafInstancedMesh.setColorAt(i, leafColors[i]);
           }
           leafInstancedMesh.instanceMatrix.needsUpdate = true;
+          if (leafInstancedMesh.instanceColor)
+            leafInstancedMesh.instanceColor.needsUpdate = true;
           treeGroup.add(leafInstancedMesh);
         }
 
-        // End Timer and Update UI
         const duration = performance.now() - startTime;
         rebuildValEl.innerText = duration.toFixed(2);
       }
@@ -789,7 +947,6 @@
       function animate(timestamp) {
         requestAnimationFrame(animate);
 
-        // Calculate Frames Per Second (sampled every 500ms for readability)
         framesCount++;
         if (timestamp > lastFpsUpdate + 500) {
           const fps = Math.round(
@@ -809,12 +966,20 @@
           rebuildTreeImmediate(currentGrowth);
         }
 
-        treeGroup.rotation.y += 0.001;
+        treeGroup.rotation.y += 0.0007;
+
+        if (sky.material.uniforms["time"]) {
+          sky.material.uniforms["time"].value = timestamp * 0.001;
+        }
+
+        if (sky.material.uniforms["cameraPos"]) {
+          sky.material.uniforms["cameraPos"].value.copy(camera.position);
+        }
+
         controls.update();
         renderer.render(scene, camera);
       }
 
-      // Pass the initial timestamp provided by requestAnimationFrame
       requestAnimationFrame((timestamp) => {
         lastFpsUpdate = timestamp;
         animate(timestamp);
