@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>High Fidelity Balanced L-System Tree (Optimized)</title>
+    <title>High Fidelity Balanced L-System Tree (Performance Tracked)</title>
     <style>
       body {
         margin: 0;
@@ -29,26 +29,84 @@
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
         z-index: 10;
       }
-      input[type="range"] {
-        width: 300px;
-        cursor: pointer;
+
+      /* Performance Overlay Styles */
+      #perf-monitor {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+        background: rgba(11, 15, 25, 0.9);
+        padding: 12px 18px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        color: #00ff66;
+        font-family: "Courier New", Courier, monospace;
+        font-size: 13px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+        z-index: 10;
+        pointer-events: none;
+        line-height: 1.5;
       }
+      .perf-label {
+        color: #aaa;
+      }
+
       label {
         font-size: 14px;
         letter-spacing: 1px;
         text-transform: uppercase;
       }
+
+      .btn-group {
+        display: flex;
+        gap: 8px;
+      }
+
+      .stage-btn {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: all 0.2s ease;
+      }
+
+      .stage-btn:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+
+      .stage-btn.active {
+        background: #3b82f6;
+        border-color: #60a5fa;
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+      }
     </style>
   </head>
   <body>
+    <div id="perf-monitor">
+      <div>
+        <span class="perf-label">FPS:</span> <span id="fps-val">--</span>
+      </div>
+      <div>
+        <span class="perf-label">Rebuild Time:</span>
+        <span id="rebuild-val">0.00</span> ms
+      </div>
+    </div>
+
     <div id="ui-container">
-      <label for="growthSlider"
-        >Canopy Density Growth: <span id="growthVal">0</span>%</label
-      >
-      <input type="range" id="growthSlider" min="0" max="100" value="0" />
+      <label>Canopy Density Growth Stage</label>
+      <div class="btn-group">
+        <button class="stage-btn active" data-val="0">0%</button>
+        <button class="stage-btn" data-val="25">25%</button>
+        <button class="stage-btn" data-val="50">50%</button>
+        <button class="stage-btn" data-val="75">75%</button>
+        <button class="stage-btn" data-val="100">100%</button>
+      </div>
     </div>
 
     <script type="importmap">
@@ -64,6 +122,10 @@
       import * as THREE from "three";
       import { OrbitControls } from "three/addons/controls/OrbitControls.js";
       import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+
+      // --- Performance Dom Elements ---
+      const fpsValEl = document.getElementById("fps-val");
+      const rebuildValEl = document.getElementById("rebuild-val");
 
       // --- Scene Setup ---
       const scene = new THREE.Scene();
@@ -94,7 +156,26 @@
         side: THREE.DoubleSide,
       });
 
-      // --- Leaf Cluster Asset ---
+      // --- Animation & FPS Tracking States ---
+      let currentGrowth = 0.0;
+      let targetGrowth = 0.0;
+      const growthStep = 0.02;
+
+      let lastFpsUpdate = 0;
+      let framesCount = 0;
+
+      // --- Shared Low-Poly Cylinder Asset for Deep Branches ---
+      const baseCylinderGeo = new THREE.CylinderGeometry(
+        0.55,
+        1,
+        1,
+        4,
+        1,
+        false,
+      );
+      baseCylinderGeo.translate(0, 0.5, 0);
+
+      // --- Leaf Cluster Asset Generator ---
       function createLeafClumpGeometry() {
         const baseLeafShape = new THREE.Shape();
         baseLeafShape.moveTo(0, 0);
@@ -143,11 +224,9 @@
       const treeGroup = new THREE.Group();
       scene.add(treeGroup);
 
-      const slider = document.getElementById("growthSlider");
-      const sliderValDisplay = document.getElementById("growthVal");
-      let isUpdating = false;
       let leafTransforms = [];
-      let branchGeometries = []; // OPTIMIZATION: Hold geometries to merge later
+      let branchGeometries = [];
+      let instancedTwigTransforms = [];
 
       // --- Pure Tube Geometry Generator ---
       function createBranchGeometry(
@@ -287,7 +366,6 @@
                   : currentDepth === 4
                     ? 3
                     : 2;
-
         let radialSegments =
           currentDepth === 0
             ? 24
@@ -304,23 +382,33 @@
         const targetEndRadius =
           currentDepth === 0 ? radius * 0.45 : radius * 0.55;
 
-        // OPTIMIZATION: Collect geometry instead of turning it into a single mesh instantly
-        const branchGeo = createBranchGeometry(
-          branchCurve,
-          radius,
-          targetEndRadius,
-          parentRadius === null ? radius * 1.15 : parentRadius,
-          segments,
-          radialSegments,
-          currentDepth === 0,
-        );
-        branchGeometries.push(branchGeo);
+        if (currentDepth >= 4) {
+          const matrix = new THREE.Matrix4();
+          const up = new THREE.Vector3(0, 1, 0);
+          const quaternion = new THREE.Quaternion().setFromUnitVectors(
+            up,
+            direction,
+          );
+          const scale = new THREE.Vector3(radius, length, radius);
+          matrix.compose(startPos, quaternion, scale);
+          instancedTwigTransforms.push(matrix);
+        } else {
+          const branchGeo = createBranchGeometry(
+            branchCurve,
+            radius,
+            targetEndRadius,
+            parentRadius === null ? radius * 1.15 : parentRadius,
+            segments,
+            radialSegments,
+            currentDepth === 0,
+          );
+          branchGeometries.push(branchGeo);
+        }
 
         const nextDepth = currentDepth + 1;
         const nextLength = currentDepth === 0 ? length * 0.65 : length * 0.72;
         const nextRadius = radius * 0.48;
 
-        // --- Foliage Shoots spawn fine sub-twigs where leaves grow ---
         if (currentDepth === 3 && growthFactor > 0.05) {
           const fineAvailability = THREE.MathUtils.clamp(
             (growthFactor - 0.05) / 0.45,
@@ -331,7 +419,6 @@
           for (let k = 1; k <= segments; k++) {
             const splitProgress = k / segments;
             const splitOrigin = branchCurve.getPointAt(splitProgress);
-            const parentTangent = branchCurve.getTangentAt(splitProgress);
 
             const seed = currentDepth * 3000 + k * 51.17;
             const randAngle = Math.cos(seed * 0.7);
@@ -370,7 +457,6 @@
           }
         }
 
-        // --- Leaves grow on the Fine Twigs (depth 4) ---
         if (currentDepth === 4 && growthFactor > 0.05) {
           const individualLeafGrowthScale = THREE.MathUtils.clamp(
             (growthFactor - 0.05) / 0.45,
@@ -378,7 +464,6 @@
             1.0,
           );
           const clumpsPerSegment = 5;
-
           const stepDelta = Math.max(1, Math.floor(segments / 8));
 
           for (let k = 1; k <= segments; k += stepDelta) {
@@ -431,12 +516,10 @@
                     branchUp,
                     Math.sin(scatterAngle) * spreadRadius,
                   );
-
                 const outwardDir = new THREE.Vector3()
                   .addScaledVector(branchRight, Math.cos(scatterAngle))
                   .addScaledVector(branchUp, Math.sin(scatterAngle))
                   .normalize();
-
                 const clumpForward = new THREE.Vector3()
                   .copy(outwardDir)
                   .multiplyScalar(0.8)
@@ -474,7 +557,6 @@
           }
         }
 
-        // --- Core Branching Architecture Splits ---
         if (currentDepth === 0 && growthFactor > 0.01) {
           const branchAvailability = (growthFactor - 0.01) / 0.99;
           const numSplits = 12;
@@ -502,7 +584,6 @@
               pitch,
               Math.sin(angle) * (1.0 - pitch),
             ).normalize();
-
             const parentRadiusAtSplit = THREE.MathUtils.lerp(
               radius,
               targetEndRadius,
@@ -610,31 +691,37 @@
         }
       }
 
-      // --- Refresh Loop ---
-      function updateTree(sliderVal) {
-        // OPTIMIZATION: Thoroughly dispose and clean old meshes and geometries
+      // --- Core Realtime Compiling Handler ---
+      function rebuildTreeImmediate(growthValue) {
+        // Start High-Resolution Timer
+        const startTime = performance.now();
+
         treeGroup.traverse((child) => {
           if (child.isMesh || child.isInstancedMesh) {
-            if (child.geometry) child.geometry.dispose();
+            if (
+              child.geometry &&
+              child.geometry !== baseCylinderGeo &&
+              child.geometry !== leafClumpGeometry
+            ) {
+              child.geometry.dispose();
+            }
           }
         });
         treeGroup.clear();
 
         leafTransforms = [];
-        branchGeometries = []; // Reset branch processing buffer
+        branchGeometries = [];
+        instancedTwigTransforms = [];
 
-        const calculatedInternalGrowth = sliderVal * 0.62;
-
+        const calculatedInternalGrowth = growthValue * 0.62;
         const baseTrunkStart = new THREE.Vector3(0, -7, 0);
         const baseTrunkDir = new THREE.Vector3(0, 1, 0).normalize();
-
         const baseTrunkMaxLen = 9.5;
         const currentTrunkLen =
           baseTrunkMaxLen * Math.min(1.0, calculatedInternalGrowth * 1.5);
         const currentTrunkRadius =
           0.85 * Math.log1p(calculatedInternalGrowth * 1.5);
 
-        // Runs recursion and fills up leafTransforms and branchGeometries buffers
         generateLSystemTree(
           baseTrunkStart,
           baseTrunkDir,
@@ -645,7 +732,6 @@
           calculatedInternalGrowth,
         );
 
-        // OPTIMIZATION: Combine all branches into 1 single Geometry/Mesh to bring draw calls down to 1.
         if (branchGeometries.length > 0) {
           const mergedBranchGeometry =
             BufferGeometryUtils.mergeGeometries(branchGeometries);
@@ -654,9 +740,20 @@
             trunkMaterial,
           );
           treeGroup.add(unifiedBranchMesh);
-
-          // Clean up individual temporary branch geometries
           branchGeometries.forEach((geo) => geo.dispose());
+        }
+
+        if (instancedTwigTransforms.length > 0) {
+          const twigInstancedMesh = new THREE.InstancedMesh(
+            baseCylinderGeo,
+            trunkMaterial,
+            instancedTwigTransforms.length,
+          );
+          for (let i = 0; i < instancedTwigTransforms.length; i++) {
+            twigInstancedMesh.setMatrixAt(i, instancedTwigTransforms[i]);
+          }
+          twigInstancedMesh.instanceMatrix.needsUpdate = true;
+          treeGroup.add(twigInstancedMesh);
         }
 
         if (leafTransforms.length > 0) {
@@ -671,29 +768,57 @@
           leafInstancedMesh.instanceMatrix.needsUpdate = true;
           treeGroup.add(leafInstancedMesh);
         }
+
+        // End Timer and Update UI
+        const duration = performance.now() - startTime;
+        rebuildValEl.innerText = duration.toFixed(2);
       }
 
-      updateTree(slider.value / 100);
+      rebuildTreeImmediate(0);
 
-      slider.addEventListener("input", (e) => {
-        const val = e.target.value;
-        sliderValDisplay.innerText = val;
-        if (!isUpdating) {
-          isUpdating = true;
-          requestAnimationFrame(() => {
-            updateTree(val / 100);
-            isUpdating = false;
-          });
-        }
+      const buttons = document.querySelectorAll(".stage-btn");
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          buttons.forEach((b) => b.classList.remove("active"));
+          e.target.classList.add("active");
+          targetGrowth = parseFloat(e.target.getAttribute("data-val")) / 100;
+        });
       });
 
-      function animate() {
+      // --- Main Render Loop with Performance Metrics ---
+      function animate(timestamp) {
         requestAnimationFrame(animate);
+
+        // Calculate Frames Per Second (sampled every 500ms for readability)
+        framesCount++;
+        if (timestamp > lastFpsUpdate + 500) {
+          const fps = Math.round(
+            (framesCount * 1000) / (timestamp - lastFpsUpdate),
+          );
+          fpsValEl.innerText = fps;
+          lastFpsUpdate = timestamp;
+          framesCount = 0;
+        }
+
+        if (currentGrowth !== targetGrowth) {
+          if (currentGrowth < targetGrowth) {
+            currentGrowth = Math.min(currentGrowth + growthStep, targetGrowth);
+          } else {
+            currentGrowth = Math.max(currentGrowth - growthStep, targetGrowth);
+          }
+          rebuildTreeImmediate(currentGrowth);
+        }
+
         treeGroup.rotation.y += 0.001;
         controls.update();
         renderer.render(scene, camera);
       }
-      animate();
+
+      // Pass the initial timestamp provided by requestAnimationFrame
+      requestAnimationFrame((timestamp) => {
+        lastFpsUpdate = timestamp;
+        animate(timestamp);
+      });
 
       window.addEventListener("resize", () => {
         camera.aspect = window.innerWidth / window.innerHeight;
