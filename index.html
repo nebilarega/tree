@@ -147,9 +147,10 @@
       const sliderValDisplay = document.getElementById("growthVal");
       let isUpdating = false;
       let leafTransforms = [];
+      let branchGeometries = []; // OPTIMIZATION: Hold geometries to merge later
 
-      // --- Pure Tube Mesh Generator ---
-      function createBranchMesh(
+      // --- Pure Tube Geometry Generator ---
+      function createBranchGeometry(
         curve,
         startRadius,
         endRadius,
@@ -217,7 +218,7 @@
         }
         positionAttribute.needsUpdate = true;
         geometry.computeVertexNormals();
-        return new THREE.Mesh(geometry, trunkMaterial);
+        return geometry;
       }
 
       // --- Recursive Structural Engine ---
@@ -302,7 +303,9 @@
 
         const targetEndRadius =
           currentDepth === 0 ? radius * 0.45 : radius * 0.55;
-        const branch = createBranchMesh(
+
+        // OPTIMIZATION: Collect geometry instead of turning it into a single mesh instantly
+        const branchGeo = createBranchGeometry(
           branchCurve,
           radius,
           targetEndRadius,
@@ -311,7 +314,7 @@
           radialSegments,
           currentDepth === 0,
         );
-        treeGroup.add(branch);
+        branchGeometries.push(branchGeo);
 
         const nextDepth = currentDepth + 1;
         const nextLength = currentDepth === 0 ? length * 0.65 : length * 0.72;
@@ -609,13 +612,17 @@
 
       // --- Refresh Loop ---
       function updateTree(sliderVal) {
-        treeGroup.children.forEach((child) => {
-          if (child.geometry) child.geometry.dispose();
+        // OPTIMIZATION: Thoroughly dispose and clean old meshes and geometries
+        treeGroup.traverse((child) => {
+          if (child.isMesh || child.isInstancedMesh) {
+            if (child.geometry) child.geometry.dispose();
+          }
         });
         treeGroup.clear();
-        leafTransforms = [];
 
-        // OPTIMIZATION: Remap 0-100% slider inputs to stay safely within your perfect 0.0 - 0.62 structural zone
+        leafTransforms = [];
+        branchGeometries = []; // Reset branch processing buffer
+
         const calculatedInternalGrowth = sliderVal * 0.62;
 
         const baseTrunkStart = new THREE.Vector3(0, -7, 0);
@@ -627,6 +634,7 @@
         const currentTrunkRadius =
           0.85 * Math.log1p(calculatedInternalGrowth * 1.5);
 
+        // Runs recursion and fills up leafTransforms and branchGeometries buffers
         generateLSystemTree(
           baseTrunkStart,
           baseTrunkDir,
@@ -636,6 +644,20 @@
           5,
           calculatedInternalGrowth,
         );
+
+        // OPTIMIZATION: Combine all branches into 1 single Geometry/Mesh to bring draw calls down to 1.
+        if (branchGeometries.length > 0) {
+          const mergedBranchGeometry =
+            BufferGeometryUtils.mergeGeometries(branchGeometries);
+          const unifiedBranchMesh = new THREE.Mesh(
+            mergedBranchGeometry,
+            trunkMaterial,
+          );
+          treeGroup.add(unifiedBranchMesh);
+
+          // Clean up individual temporary branch geometries
+          branchGeometries.forEach((geo) => geo.dispose());
+        }
 
         if (leafTransforms.length > 0) {
           const leafInstancedMesh = new THREE.InstancedMesh(
