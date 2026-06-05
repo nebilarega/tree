@@ -174,16 +174,21 @@ class App {
 
     this.dirtSystem.update(dt || 0);
 
-    // Camera Path
+    // Camera Path - Dynamic based on screen size
+    const isMobile = window.innerWidth < 768;
     const camStart = { x: -2, y: -4, z: 8 };
-    const camEnd = { x: 3, y: 5, z: 25 };
+    const camEnd = isMobile 
+      ? { x: 3, y: 7, z: 35 } // Pulled back and higher for mobile
+      : { x: 3, y: 5, z: 25 }; // Standard desktop framing
     
     this.sceneManager.camera.position.x = this._lerp(camStart.x, camEnd.x, this.currentGrowth);
     this.sceneManager.camera.position.y = this._lerp(camStart.y, camEnd.y, this.currentGrowth);
     this.sceneManager.camera.position.z = this._lerp(camStart.z, camEnd.z, this.currentGrowth);
 
     const targetStart = { x: 0, y: -6, z: 0 };
-    const targetEnd = { x: 0, y: 4, z: 0 };
+    const targetEnd = isMobile
+      ? { x: 0, y: 6, z: 0 } // Look slightly higher on mobile
+      : { x: 0, y: 4, z: 0 };
     this.sceneManager.controls.target.x = this._lerp(targetStart.x, targetEnd.x, this.currentGrowth);
     this.sceneManager.controls.target.y = this._lerp(targetStart.y, targetEnd.y, this.currentGrowth);
     this.sceneManager.controls.target.z = this._lerp(targetStart.z, targetEnd.z, this.currentGrowth);
