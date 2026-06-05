@@ -247,43 +247,47 @@ export class Tree {
       this.group.add(leafInstancedMesh);
     }
 
-    // NEW: Render Apples at 100% stage
+    // NEW: Render Apples at 100% stage with growth animation
     if (growthValue > 0.9 && this.fruitTransforms.length > 0) {
-      this._renderFruits();
+      // Map 0.9 -> 1.0 growth to 0.0 -> 1.0 fruit scale
+      const fruitScale = THREE.MathUtils.clamp((growthValue - 0.9) / 0.1, 0, 1);
+      this._renderFruits(fruitScale);
     }
 
     return performance.now() - startTime;
   }
 
-  _renderFruits() {
-    const fruitGeo = new THREE.SphereGeometry(0.35, 16, 16); // Slightly larger and smoother
+  _renderFruits(individualScale = 1.0) {
+    const fruitGeo = new THREE.SphereGeometry(0.35, 16, 16); 
     const fruitMat = new THREE.MeshStandardMaterial({ 
       color: "#ff0000", 
       roughness: 0.1,
       metalness: 0.2,
-      emissive: "#880000", // Stronger glow to ensure visibility
+      emissive: "#880000", 
       envMapIntensity: 2.5 
     });
 
-    const numApples = 10; // Increase count for better discovery
+    const numApples = 10;
     const poolSize = this.fruitTransforms.length;
     
-    // Scratch variables for matrix extraction
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
-    const scale = new THREE.Vector3();
+    const twigScale = new THREE.Vector3();
 
     for (let i = 0; i < numApples; i++) {
       const index = Math.floor((i / numApples) * poolSize);
       const transform = this.fruitTransforms[index];
       if (!transform) continue;
 
-      // CRITICAL: Extract position/quaternion but IGNORE the twig's tiny scale
-      transform.decompose(position, quaternion, scale);
+      transform.decompose(position, quaternion, twigScale);
 
       const apple = new THREE.Mesh(fruitGeo, fruitMat);
       apple.position.copy(position);
       apple.quaternion.copy(quaternion);
+      
+      // Apply the animated growth scale
+      apple.scale.setScalar(individualScale);
+      
       apple.userData = { type: 'fruit', id: i };
       apple.castShadow = true;
       this.group.add(apple);
