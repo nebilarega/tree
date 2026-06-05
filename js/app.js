@@ -23,7 +23,7 @@ class App {
     // Interaction State
     this.mouse = new THREE.Vector2();
     this.raycaster = new THREE.Raycaster();
-    this.hoveredApple = null;
+    this.hoveredPath = null; // Track by stable path ID
     this.panningToApple = false;
     this.panTargetPos = new THREE.Vector3();
     this.panTargetLookAt = new THREE.Vector3();
@@ -97,18 +97,29 @@ class App {
   }
 
   handleClick(e) {
-    if (this.currentGrowth < 0.95 || this.isTransitioning) return;
+    if (this.currentGrowth < 0.9 || this.isTransitioning) return;
     
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
     const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
-    const fruit = intersects.find(intersect => intersect.object.userData && intersect.object.userData.type === 'fruit');
+    
+    let fruitObject = null;
+    for (const intersect of intersects) {
+      let obj = intersect.object;
+      while (obj && obj !== this.tree.group) {
+        if (obj.userData && obj.userData.type === 'fruit') {
+          fruitObject = obj;
+          break;
+        }
+        obj = obj.parent;
+      }
+      if (fruitObject) break;
+    }
 
-    if (fruit) {
+    if (fruitObject) {
       this.panningToApple = true;
       this.userInteracted = true; 
       
-      const targetObj = fruit.object;
-      targetObj.getWorldPosition(this.panTargetLookAt);
+      this.panTargetLookAt.copy(new THREE.Vector3().setFromMatrixPosition(fruitObject.matrixWorld));
       
       const dir = new THREE.Vector3().subVectors(this.sceneManager.camera.position, this.panTargetLookAt).normalize();
       this.panTargetPos.copy(this.panTargetLookAt).addScaledVector(dir, 6);
@@ -194,30 +205,59 @@ class App {
     const peakHeight = -7.10 + this.dirtSystem.config.moundHeight;
     this.wateringCan.update(dt || 0, peakHeight);
 
-    // Apple Hover Logic (Halo/Bloom)
-    if (this.currentGrowth >= 0.95 && !this.isTransitioning) {
+    // Stable Apple Hover Logic (survives rebuilds)
+    if (this.currentGrowth >= 0.9) {
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
       const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
-      const fruit = intersects.find(intersect => intersect.object.userData && intersect.object.userData.type === 'fruit');
-
-      if (fruit) {
-        if (this.hoveredApple !== fruit.object) {
-          if (this.hoveredApple) {
-            const oldHalo = this.hoveredApple.getObjectByName('halo');
-            if (oldHalo) oldHalo.material.uniforms.opacity.value = 0;
+      
+      let hoveredFruit = null;
+      for (const intersect of intersects) {
+        let obj = intersect.object;
+        while (obj && obj !== this.tree.group) {
+          if (obj.userData && obj.userData.type === 'fruit') {
+            hoveredFruit = obj;
+            break;
           }
-          this.hoveredApple = fruit.object;
-          const halo = this.hoveredApple.getObjectByName('halo');
-          if (halo) halo.material.uniforms.opacity.value = 0.6;
-          document.body.style.cursor = 'pointer';
+          obj = obj.parent;
         }
+        if (hoveredFruit) break;
+      }
+
+      const tooltipEl = document.getElementById('apple-tooltip');
+
+      if (hoveredFruit) {
+        const currentPath = hoveredFruit.userData.path;
+        
+        // If we switched apples or it's a new frame's fresh mesh
+        if (this.hoveredPath !== currentPath) {
+          this.hoveredPath = currentPath;
+          
+          if (tooltipEl) {
+            const social = hoveredFruit.userData.social;
+            tooltipEl.textContent = social || 'Apple';
+            tooltipEl.style.backgroundColor = social === 'LinkedIn' ? '#0077b5' : 
+                                            social === 'GitHub' ? '#111111' : 
+                                            social === 'Portfolio' ? '#ff6666' : '#333333';
+            tooltipEl.style.opacity = '1';
+          }
+        }
+
+        // Continually sync visual effects for the NEW mesh in this frame
+        const halo = hoveredFruit.getObjectByName('halo');
+        if (halo) halo.material.uniforms.opacity.value = 0.6;
+        
+        if (tooltipEl) {
+          const pos = this._toScreenPosition(hoveredFruit);
+          tooltipEl.style.left = `${pos.x}px`;
+          tooltipEl.style.top = `${pos.y - 40}px`; 
+          tooltipEl.style.transform = 'translate(-50%, -50%)';
+        }
+
+        document.body.style.cursor = 'pointer';
       } else {
-        if (this.hoveredApple) {
-          const halo = this.hoveredApple.getObjectByName('halo');
-          if (halo) halo.material.uniforms.opacity.value = 0;
-          this.hoveredApple = null;
-          document.body.style.cursor = 'default';
-        }
+        this.hoveredPath = null;
+        if (tooltipEl) tooltipEl.style.opacity = '0';
+        document.body.style.cursor = 'default';
       }
     }
 
@@ -286,7 +326,20 @@ class App {
   _lerp(start, end, t) {
     return start * (1 - t) + end * t;
   }
+
+  _toScreenPosition(obj) {
+    const vector = new THREE.Vector3();
+    const canvas = this.sceneManager.renderer.domElement;
+
+    obj.updateMatrixWorld();
+    vector.setFromMatrixPosition(obj.matrixWorld);
+    vector.project(this.sceneManager.camera);
+
+    const x = (vector.x * 0.5 + 0.5) * canvas.clientWidth;
+    const y = (vector.y * -0.5 + 0.5) * canvas.clientHeight;
+
+    return { x, y };
+  }
 }
 
 new App();
-

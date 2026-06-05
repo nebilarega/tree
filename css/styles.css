@@ -246,3 +246,20 @@ section:nth-child(even) .section-content {
 section:nth-child(even) p {
   margin-left: auto;
 }
+
+.apple-tooltip {
+  pointer-events: none;
+  z-index: 1000;
+  white-space: nowrap;
+  font-family: Arial, sans-serif;
+  font-weight: bold;
+  font-size: 14px;
+  color: white;
+  padding: 5px 12px;
+  border-radius: 15px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  border: 2px solid rgba(255,255,255,0.2);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}

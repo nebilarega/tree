@@ -39,9 +39,49 @@ export class Tree {
 
     this.leafClumpGeometry = this._createLeafClumpGeometry();
 
+    // Cache Fruit Geometries and Materials for performance
+    this.fruitGeo = new THREE.SphereGeometry(0.35, 12, 12);
+    this.fruitMat = new THREE.MeshStandardMaterial({ 
+      color: "#ff0000", 
+      roughness: 0.1,
+      metalness: 0.2,
+      emissive: "#880000", 
+      envMapIntensity: 2.5 
+    });
+
+    this.haloGeo = new THREE.SphereGeometry(0.48, 16, 16);
+    this.haloMatTemplate = new THREE.ShaderMaterial({
+      uniforms: { opacity: { value: 0.0 } },
+      vertexShader: `
+        varying vec3 vNormal;
+        void main() {
+          vNormal = normalize(normalMatrix * normal);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform float opacity;
+        varying vec3 vNormal;
+        vec3 brightnessToColor(float b){
+            b *= 0.25;
+            return (vec3(b, b*b, b*b*b*b)/0.25)*0.6;
+        }
+        void main() {
+          vec3 n = normalize(vNormal);
+          float fresnel = pow(1.0 - abs(dot(n, vec3(0.0, 0.0, 1.0))), 3.0);
+          vec3 col = brightnessToColor(fresnel * 2.0 + 1.2);
+          gl_FragColor = vec4(col, fresnel * opacity);
+        }
+      `,
+      side: THREE.BackSide,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      depthWrite: false
+    });
+
     this.leafTransforms = [];
     this.leafColors = [];
-    this.fruitTransforms = []; // NEW: track fruit locations
+    this.fruitTransforms = []; 
     this.branchGeometries = [];
     this.instancedTwigTransforms = [];
 
@@ -167,7 +207,9 @@ export class Tree {
         if (
           child.geometry &&
           child.geometry !== this.baseCylinderGeo &&
-          child.geometry !== this.leafClumpGeometry
+          child.geometry !== this.leafClumpGeometry &&
+          child.geometry !== this.fruitGeo &&
+          child.geometry !== this.haloGeo
         ) {
           child.geometry.dispose();
         }
@@ -177,7 +219,7 @@ export class Tree {
 
     this.leafTransforms = [];
     this.leafColors = [];
-    this.fruitTransforms = []; // Reset locations
+    this.fruitTransforms = []; 
     this.branchGeometries = [];
     this.instancedTwigTransforms = [];
 
@@ -198,7 +240,8 @@ export class Tree {
       5,
       calculatedInternalGrowth,
       null,
-      growthValue
+      growthValue,
+      "0"
     );
 
     if (this.branchGeometries.length > 0) {
@@ -247,9 +290,7 @@ export class Tree {
       this.group.add(leafInstancedMesh);
     }
 
-    // NEW: Render Apples at 100% stage with growth animation
     if (growthValue > 0.9 && this.fruitTransforms.length > 0) {
-      // Map 0.9 -> 1.0 growth to 0.0 -> 1.0 fruit scale
       const fruitScale = THREE.MathUtils.clamp((growthValue - 0.9) / 0.1, 0, 1);
       this._renderFruits(fruitScale);
     }
@@ -258,82 +299,72 @@ export class Tree {
   }
 
   _renderFruits(individualScale = 1.0) {
-    const fruitGeo = new THREE.SphereGeometry(0.35, 16, 16); 
-    const fruitMat = new THREE.MeshStandardMaterial({ 
-      color: "#ff0000", 
-      roughness: 0.1,
-      metalness: 0.2,
-      emissive: "#880000", 
-      envMapIntensity: 2.5 
-    });
+    const socialConfigs = [
+      { name: 'LinkedIn', color: '#0077b5' },
+      { name: 'GitHub', color: '#111111' },
+      { name: 'Portfolio', color: '#ff6666' }
+    ];
 
-    const numApples = 10;
     const poolSize = this.fruitTransforms.length;
+    if (poolSize === 0) return;
+
+    const sortedPool = [...this.fruitTransforms].sort((a, b) => a.path.localeCompare(b.path));
+
+    const socialIndices = [
+      Math.floor(poolSize * 0.40),
+      Math.floor(poolSize * 0.50),
+      Math.floor(poolSize * 0.60)
+    ];
+
+    const numTotalApples = 25; 
+    const indicesToRender = [];
     
+    socialIndices.forEach(idx => indicesToRender.push({ index: idx, isSocial: true }));
+    const fillerCount = numTotalApples - socialIndices.length;
+    for (let i = 0; i < fillerCount; i++) {
+      const idx = Math.floor((i / fillerCount) * (poolSize - 1));
+      if (!socialIndices.includes(idx)) {
+          indicesToRender.push({ index: idx, isSocial: false });
+      }
+    }
+
     const position = new THREE.Vector3();
     const quaternion = new THREE.Quaternion();
     const twigScale = new THREE.Vector3();
 
-    for (let i = 0; i < numApples; i++) {
-      const index = Math.floor((i / numApples) * poolSize);
-      const transform = this.fruitTransforms[index];
-      if (!transform) continue;
+    indicesToRender.forEach((item, i) => {
+      const fruitData = sortedPool[item.index];
+      if (!fruitData) return;
 
+      const transform = fruitData.matrix;
       transform.decompose(position, quaternion, twigScale);
 
-      const apple = new THREE.Mesh(fruitGeo, fruitMat);
+      let socialConfig = null;
+      if (item.isSocial) {
+          const sIdx = socialIndices.indexOf(item.index);
+          socialConfig = socialConfigs[sIdx];
+      }
+
+      const apple = new THREE.Mesh(this.fruitGeo, this.fruitMat);
       apple.position.copy(position);
       apple.quaternion.copy(quaternion);
-      
-      // Apply the animated growth scale
       apple.scale.setScalar(individualScale);
       
-      apple.userData = { type: 'fruit', id: i };
+      apple.userData = { 
+        type: 'fruit', 
+        path: fruitData.path,
+        social: socialConfig ? socialConfig.name : null
+      };
       apple.castShadow = true;
       
-      // NEW: Fresnel Bloom Halo for high-end glow
-      const haloGeo = new THREE.SphereGeometry(0.48, 24, 24);
-      const haloMat = new THREE.ShaderMaterial({
-        uniforms: {
-          opacity: { value: 0.0 }
-        },
-        vertexShader: `
-          varying vec3 vNormal;
-          void main() {
-            vNormal = normalize(normalMatrix * normal);
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: `
-          uniform float opacity;
-          varying vec3 vNormal;
-          
-          vec3 brightnessToColor(float b){
-              b *= 0.25;
-              return (vec3(b, b*b, b*b*b*b)/0.25)*0.6;
-          }
-
-          void main() {
-            vec3 n = normalize(vNormal);
-            // View-space Fresnel
-            float fresnel = pow(1.0 - abs(dot(n, vec3(0.0, 0.0, 1.0))), 3.0);
-            
-            // Apply hue logic from reference
-            vec3 col = brightnessToColor(fresnel * 2.0 + 1.2);
-            
-            gl_FragColor = vec4(col, fresnel * opacity);
-          }
-        `,
-        side: THREE.BackSide,
-        blending: THREE.AdditiveBlending,
-        transparent: true
-      });
-      const halo = new THREE.Mesh(haloGeo, haloMat);
+      // Halo
+      const haloMat = this.haloMatTemplate.clone();
+      const halo = new THREE.Mesh(this.haloGeo, haloMat);
       halo.name = 'halo';
       apple.add(halo);
 
       this.group.add(apple);
-    }
+    });
   }
 
   updateWind(time) {
@@ -342,47 +373,19 @@ export class Tree {
     }
   }
 
-  _createBranchGeometry(
-    curve,
-    startRadius,
-    endRadius,
-    parentRadius,
-    segments,
-    radialSegments,
-    isTrunk = false,
-  ) {
-    const geometry = new THREE.TubeGeometry(
-      curve,
-      segments,
-      startRadius,
-      radialSegments,
-      false,
-    );
+  _createBranchGeometry(curve, startRadius, endRadius, parentRadius, segments, radialSegments, isTrunk = false) {
+    const geometry = new THREE.TubeGeometry(curve, segments, startRadius, radialSegments, false);
     const positionAttribute = geometry.attributes.position;
     const targetBaseRadius = startRadius + (parentRadius - startRadius) * 0.45;
 
     for (let i = 0; i <= segments; i++) {
       const progression = i / segments;
-      const standardRadius = THREE.MathUtils.lerp(
-        startRadius,
-        endRadius,
-        progression,
-      );
+      const standardRadius = THREE.MathUtils.lerp(startRadius, endRadius, progression);
       const flareDropoff = Math.exp(-progression * 6.0);
-      let actualRadius = THREE.MathUtils.lerp(
-        standardRadius,
-        targetBaseRadius,
-        flareDropoff,
-      );
+      let actualRadius = THREE.MathUtils.lerp(standardRadius, targetBaseRadius, flareDropoff);
 
       if (isTrunk && progression > 0.9) {
-        const pinchFactor = THREE.MathUtils.mapLinear(
-          progression,
-          0.9,
-          1.0,
-          1.0,
-          0.3,
-        );
+        const pinchFactor = THREE.MathUtils.mapLinear(progression, 0.9, 1.0, 1.0, 0.3);
         actualRadius *= pinchFactor;
       }
 
@@ -403,28 +406,13 @@ export class Tree {
     return geometry;
   }
 
-  _generateLSystem(
-    startPos,
-    direction,
-    length,
-    radius,
-    currentDepth,
-    maxDepth,
-    growthFactor,
-    parentRadius = null,
-    originalGrowth = 0
-  ) {
+  _generateLSystem(startPos, direction, length, radius, currentDepth, maxDepth, growthFactor, parentRadius = null, originalGrowth = 0, path = "0") {
     if (currentDepth > maxDepth || length < 0.03 || radius < 0.001) return;
 
-    const endPos = new THREE.Vector3()
-      .copy(startPos)
-      .addScaledVector(direction, length);
+    const endPos = new THREE.Vector3().copy(startPos).addScaledVector(direction, length);
     let curveAxis = new THREE.Vector3(0, 1, 0).cross(direction).normalize();
     if (curveAxis.lengthSq() < 0.001) curveAxis.set(1, 0, 0);
-    const secondaryAxis = new THREE.Vector3()
-      .copy(curveAxis)
-      .cross(direction)
-      .normalize();
+    const secondaryAxis = new THREE.Vector3().copy(curveAxis).cross(direction).normalize();
     const cp1 = new THREE.Vector3();
     const cp2 = new THREE.Vector3();
 
@@ -432,37 +420,16 @@ export class Tree {
       const maxTrunkWobble = 2.2;
       const currentWobble = growthFactor * maxTrunkWobble;
       cp1.copy(startPos).addScaledVector(direction, length * 0.35);
-      cp2
-        .copy(startPos)
-        .addScaledVector(direction, length * 0.7)
-        .add(this._scratchVec1.set(currentWobble, 0, currentWobble * 0.5));
+      cp2.copy(startPos).addScaledVector(direction, length * 0.7).add(this._scratchVec1.set(currentWobble, 0, currentWobble * 0.5));
     } else {
       const proportionalOffset = length * 0.35;
       cp1.copy(startPos).addScaledVector(direction, length * 0.33);
-      cp2
-        .copy(startPos)
-        .addScaledVector(direction, length * 0.66)
-        .addScaledVector(curveAxis, proportionalOffset)
-        .addScaledVector(secondaryAxis, proportionalOffset * 0.2);
+      cp2.copy(startPos).addScaledVector(direction, length * 0.66).addScaledVector(curveAxis, proportionalOffset).addScaledVector(secondaryAxis, proportionalOffset * 0.2);
     }
 
     const branchCurve = new THREE.CubicBezierCurve3(startPos, cp1, cp2, endPos);
-    let segments = 2;
-    let radialSegments = 3;
-
-    if (currentDepth === 0) {
-      segments = 40;
-      radialSegments = 16;
-    } else if (currentDepth === 1) {
-      segments = 20;
-      radialSegments = 10;
-    } else if (currentDepth === 2) {
-      segments = 8;
-      radialSegments = 6;
-    } else if (currentDepth === 3) {
-      segments = 4;
-      radialSegments = 4;
-    }
+    let segments = currentDepth === 0 ? 40 : currentDepth === 1 ? 20 : currentDepth === 2 ? 8 : currentDepth === 3 ? 4 : 2;
+    let radialSegments = currentDepth === 0 ? 16 : currentDepth === 1 ? 10 : currentDepth === 2 ? 6 : currentDepth === 3 ? 4 : 3;
 
     const targetEndRadius = currentDepth === 0 ? radius * 0.45 : radius * 0.55;
 
@@ -474,23 +441,13 @@ export class Tree {
       matrix.compose(startPos, this._scratchQuat, this._scratchScale);
       this.instancedTwigTransforms.push(matrix);
 
-      // FORCE CAPTURE: Reliable terminal branch end points
       if (originalGrowth > 0.8) {
         const fruitMatrix = new THREE.Matrix4().copy(matrix);
-        // Translate to the tip of this final segment
         fruitMatrix.multiply(new THREE.Matrix4().makeTranslation(0, 1.0, 0));
-        this.fruitTransforms.push(fruitMatrix);
+        this.fruitTransforms.push({ matrix: fruitMatrix, path: path + "-tip" });
       }
     } else {
-      const branchGeo = this._createBranchGeometry(
-        branchCurve,
-        radius,
-        targetEndRadius,
-        parentRadius === null ? radius * 1.15 : parentRadius,
-        segments,
-        radialSegments,
-        currentDepth === 0,
-      );
+      const branchGeo = this._createBranchGeometry(branchCurve, radius, targetEndRadius, parentRadius === null ? radius * 1.15 : parentRadius, segments, radialSegments, currentDepth === 0);
       this.branchGeometries.push(branchGeo);
     }
 
@@ -499,282 +456,91 @@ export class Tree {
     const nextRadius = radius * 0.48;
 
     if (currentDepth === 3 && growthFactor > 0.05) {
-      const fineAvailability = THREE.MathUtils.clamp(
-        (growthFactor - 0.05) / 0.45,
-        0.0,
-        1.0,
-      );
+      const fineAvailability = THREE.MathUtils.clamp((growthFactor - 0.05) / 0.45, 0.0, 1.0);
       for (let k = 1; k <= segments; k++) {
         const splitProgress = k / segments;
         const splitOrigin = branchCurve.getPointAt(splitProgress);
         const seed = currentDepth * 3000 + k * 51.17;
-        const randAngle = Math.cos(seed * 0.7);
-        const goldenAngleStep = k * 2.39996 + randAngle * 0.3;
-        const pitch = 0.5;
-        const fineDir = new THREE.Vector3(
-          Math.cos(goldenAngleStep) * (1.0 - pitch),
-          pitch,
-          Math.sin(goldenAngleStep) * (1.0 - pitch),
-        ).normalize();
-        const parentRadiusAtSplit = THREE.MathUtils.lerp(
-          radius,
-          targetEndRadius,
-          splitProgress,
-        );
-        const generationDelay = 0.1;
-        const adjustedAvailability = THREE.MathUtils.clamp(
-          (fineAvailability - generationDelay) / (1.0 - generationDelay),
-          0,
-          1,
-        );
+        const goldenAngleStep = k * 2.39996 + Math.cos(seed * 0.7) * 0.3;
+        const fineDir = new THREE.Vector3(Math.cos(goldenAngleStep) * 0.5, 0.5, Math.sin(goldenAngleStep) * 0.5).normalize();
+        const adjustedAvailability = THREE.MathUtils.clamp((fineAvailability - 0.1) / 0.9, 0, 1);
         const localGrowth = Math.min(1.0, adjustedAvailability * 1.8);
-
-        this._generateLSystem(
-          splitOrigin,
-          fineDir,
-          nextLength * localGrowth,
-          nextRadius * Math.pow(localGrowth, 1.2),
-          nextDepth,
-          maxDepth,
-          growthFactor,
-          parentRadiusAtSplit,
-          originalGrowth
-        );
+        this._generateLSystem(splitOrigin, fineDir, nextLength * localGrowth, nextRadius * Math.pow(localGrowth, 1.2), nextDepth, maxDepth, growthFactor, THREE.MathUtils.lerp(radius, targetEndRadius, splitProgress), originalGrowth, path + "-k" + k);
       }
     }
 
     if (currentDepth === 4 && growthFactor > 0.05) {
-      const individualLeafGrowthScale = THREE.MathUtils.clamp(
-        (growthFactor - 0.05) / 0.32,
-        0.0,
-        1.0,
-      );
+      const leafGrowth = THREE.MathUtils.clamp((growthFactor - 0.05) / 0.32, 0.0, 1.0);
       const clumpsPerSegment = 6;
       const stepDelta = Math.max(1, Math.floor(segments / 8));
-
       for (let k = 1; k <= segments; k += stepDelta) {
         const progress = k / segments;
         const leafPos = branchCurve.getPointAt(progress);
         const branchForward = branchCurve.getTangentAt(progress).normalize();
         const heightFromBase = leafPos.y + 7.0;
-        let heightScaleFactor = 0.0;
-        if (heightFromBase > 4.0 && heightFromBase < 18.0) {
-          const normalizedHeight = (heightFromBase - 4.0) / 14.0;
-          heightScaleFactor = Math.sin(normalizedHeight * Math.PI);
-        }
-
-        if (heightScaleFactor >= 0.1) {
-          let referenceUp = this._upRef.set(0, 1, 0);
-          if (Math.abs(branchForward.dot(referenceUp)) > 0.95)
-            referenceUp.set(1, 0, 0);
-
-          const branchRight = this._scratchVec1
-            .crossVectors(branchForward, referenceUp)
-            .normalize();
-          const branchUp = this._scratchVec2
-            .crossVectors(branchRight, branchForward)
-            .normalize();
-
+        let hScale = (heightFromBase > 4.0 && heightFromBase < 18.0) ? Math.sin(((heightFromBase - 4.0) / 14.0) * Math.PI) : 0;
+        if (hScale >= 0.1) {
+          let refUp = this._upRef.set(0, 1, 0);
+          if (Math.abs(branchForward.dot(refUp)) > 0.95) refUp.set(1, 0, 0);
+          const bRight = new THREE.Vector3().crossVectors(branchForward, refUp).normalize();
+          const bUp = new THREE.Vector3().crossVectors(bRight, branchForward).normalize();
           for (let l = 0; l < clumpsPerSegment; l++) {
             const seed = currentDepth * 4000 + (k * clumpsPerSegment + l) * 53.17;
-            const randA = Math.sin(seed * 0.5 + 0.5);
             const randB = Math.cos(seed * 1.4) * 0.5 + 0.5;
-            const scatterAngle = (l / clumpsPerSegment) * Math.PI * 2;
-            const currentThickness = THREE.MathUtils.lerp(
-              radius,
-              targetEndRadius,
-              progress,
-            );
-            const spreadRadius = currentThickness * (0.8 + randB * 1.1);
-
-            const finalLeafPos = new THREE.Vector3()
-              .copy(leafPos)
-              .addScaledVector(branchRight, Math.cos(scatterAngle) * spreadRadius)
-              .addScaledVector(branchUp, Math.sin(scatterAngle) * spreadRadius);
-
-            const outwardDir = new THREE.Vector3()
-              .addScaledVector(branchRight, Math.cos(scatterAngle))
-              .addScaledVector(branchUp, Math.sin(scatterAngle))
-              .normalize();
-
-            const clumpForward = new THREE.Vector3()
-              .copy(outwardDir)
-              .multiplyScalar(0.8)
-              .addScaledVector(branchForward, 0.2)
-              .add(this._scratchVec1.set(0, -0.15, 0))
-              .normalize();
-
-            let clumpUp = new THREE.Vector3(0, 1, 0);
-            if (Math.abs(clumpForward.dot(clumpUp)) > 0.95) clumpUp.set(1, 0, 0);
-
-            const clumpRight = new THREE.Vector3()
-              .crossVectors(clumpForward, clumpUp)
-              .normalize();
-            clumpUp.crossVectors(clumpRight, clumpForward).normalize();
-
+            const sAngle = (l / clumpsPerSegment) * Math.PI * 2;
+            const thick = THREE.MathUtils.lerp(radius, targetEndRadius, progress);
+            const finalPos = new THREE.Vector3().copy(leafPos).addScaledVector(bRight, Math.cos(sAngle) * thick * (0.8 + randB * 1.1)).addScaledVector(bUp, Math.sin(sAngle) * thick * (0.8 + randB * 1.1));
+            const outward = new THREE.Vector3().addScaledVector(bRight, Math.cos(sAngle)).addScaledVector(bUp, Math.sin(sAngle)).normalize();
+            const cForward = new THREE.Vector3().copy(outward).multiplyScalar(0.8).addScaledVector(branchForward, 0.2).add(new THREE.Vector3(0, -0.15, 0)).normalize();
+            let cUp = new THREE.Vector3(0, 1, 0);
+            if (Math.abs(cForward.dot(cUp)) > 0.95) cUp.set(1, 0, 0);
+            const cRight = new THREE.Vector3().crossVectors(cForward, cUp).normalize();
+            cUp.crossVectors(cRight, cForward).normalize();
             const matrix = new THREE.Matrix4();
-            matrix.makeBasis(clumpRight, clumpUp, clumpForward);
-            matrix.setPosition(finalLeafPos);
-
-            const finalScale =
-              (0.35 + randA * 0.4) *
-              individualLeafGrowthScale *
-              heightScaleFactor *
-              1.38;
-            const scaleMatrix = new THREE.Matrix4().makeScale(
-              finalScale,
-              finalScale,
-              finalScale,
-            );
-            matrix.multiply(scaleMatrix);
+            matrix.makeBasis(cRight, cUp, cForward);
+            matrix.setPosition(finalPos);
+            const fScale = (0.35 + Math.sin(seed * 0.5 + 0.5) * 0.4) * leafGrowth * hScale * 1.38;
+            matrix.multiply(new THREE.Matrix4().makeScale(fScale, fScale, fScale));
             this.leafTransforms.push(matrix);
-
-            // NEW: Capture fruit locations at 100% stage during leaf spawning
             if (originalGrowth > 0.95 && l === 0 && k % 12 === 0) {
-                const fruitMatrix = new THREE.Matrix4().copy(matrix);
-                fruitMatrix.multiply(new THREE.Matrix4().makeTranslation(0, -0.2, 0));
-                this.fruitTransforms.push(fruitMatrix);
+                const fMat = new THREE.Matrix4().copy(matrix).multiply(new THREE.Matrix4().makeTranslation(0, -0.2, 0));
+                this.fruitTransforms.push({ matrix: fMat, path: path + "-l" + k + "-" + l });
             }
-
-            const selectedBaseColor =
-              leafPalettes[Math.floor(randB * leafPalettes.length)];
-            const hueShift = (randA - 0.5) * 0.06;
-            const finalClumpColor = selectedBaseColor
-              .clone()
-              .offsetHSL(hueShift, 0, (randA - 0.5) * 0.1);
-            this.leafColors.push(finalClumpColor);
+            this.leafColors.push(leafPalettes[Math.floor(randB * leafPalettes.length)].clone().offsetHSL((Math.sin(seed * 0.5 + 0.5) - 0.5) * 0.06, 0, (Math.sin(seed * 0.5 + 0.5) - 0.5) * 0.1));
           }
         }
       }
     }
 
     if (currentDepth === 0 && growthFactor > 0.01) {
-      const branchAvailability = (growthFactor - 0.01) / 0.99;
-      const numSplits = 12;
-
-      for (let i = 0; i < numSplits; i++) {
-        const localSeed = i * 43.19;
-        const variance = Math.sin(localSeed) * 0.03;
-        const splitProgress = 0.35 + (i / numSplits) * 0.52 + variance;
-        const splitOrigin = branchCurve.getPointAt(splitProgress);
-        const goldenAngleSpacing = i * 2.39996;
-        const angleVariance = Math.cos(localSeed * 1.7) * 0.2;
-        const angle = goldenAngleSpacing + angleVariance;
-        const basePitch = 0.45 + (i / numSplits) * 0.15;
-        const pitchVariance = Math.sin(localSeed * 2.3) * 0.08;
-        const pitch = THREE.MathUtils.clamp(basePitch + pitchVariance, 0.3, 0.7);
-        const branchDir = new THREE.Vector3(
-          Math.cos(angle) * (1.0 - pitch),
-          pitch,
-          Math.sin(angle) * (1.0 - pitch),
-        ).normalize();
-
-        const parentRadiusAtSplit = THREE.MathUtils.lerp(
-          radius,
-          targetEndRadius,
-          splitProgress,
-        );
-        const generationDelay = (i / numSplits) * 0.15;
-        const adjustedAvailability = THREE.MathUtils.clamp(
-          (branchAvailability - generationDelay) / (1.0 - generationDelay),
-          0,
-          1,
-        );
-        const localBranchGrowth = Math.min(1.0, adjustedAvailability * 1.5);
-
-        if (localBranchGrowth > 0.01) {
-          this._generateLSystem(
-            splitOrigin,
-            branchDir,
-            nextLength * localBranchGrowth,
-            nextRadius * Math.pow(localBranchGrowth, 1.2),
-            nextDepth,
-            maxDepth,
-            growthFactor,
-            parentRadiusAtSplit,
-            originalGrowth
-          );
-        }
+      const bAvail = (growthFactor - 0.01) / 0.99;
+      for (let i = 0; i < 12; i++) {
+        const seed = i * 43.19;
+        const progress = 0.35 + (i / 12) * 0.52 + Math.sin(seed) * 0.03;
+        const angle = i * 2.39996 + Math.cos(seed * 1.7) * 0.2;
+        const pitch = THREE.MathUtils.clamp(0.45 + (i / 12) * 0.15 + Math.sin(seed * 2.3) * 0.08, 0.3, 0.7);
+        const bDir = new THREE.Vector3(Math.cos(angle) * (1.0 - pitch), pitch, Math.sin(angle) * (1.0 - pitch)).normalize();
+        const lGrowth = Math.min(1.0, THREE.MathUtils.clamp((bAvail - (i / 12) * 0.15) / (1.0 - (i / 12) * 0.15), 0, 1) * 1.5);
+        if (lGrowth > 0.01) this._generateLSystem(branchCurve.getPointAt(progress), bDir, nextLength * lGrowth, nextRadius * Math.pow(lGrowth, 1.2), nextDepth, maxDepth, growthFactor, THREE.MathUtils.lerp(radius, targetEndRadius, progress), originalGrowth, path + "-s" + i);
       }
-    }
-
-    if (currentDepth === 1 && growthFactor > 0.12) {
-      const twigAvailability = (growthFactor - 0.12) / 0.88;
-      const numTwigs = 3;
-
-      for (let i = 0; i < numTwigs; i++) {
-        const splitProgress = 0.35 + i * 0.2;
-        const splitOrigin = branchCurve.getPointAt(splitProgress);
-        const parentTangent = branchCurve.getTangentAt(splitProgress);
-        const sideVector = new THREE.Vector3(0, 1, 0)
-          .cross(parentTangent)
-          .normalize();
-        if (sideVector.lengthSq() < 0.001) sideVector.set(1, 0, 0);
-        const splitSign = i === 0 ? 1.0 : i === 1 ? -1.0 : 0.3;
-
-        const twigDir = new THREE.Vector3()
-          .copy(parentTangent)
-          .addScaledVector(sideVector, splitSign * 0.85);
-        twigDir.y += 0.1;
-        twigDir.normalize();
-
-        const parentRadiusAtSplit = THREE.MathUtils.lerp(
-          radius,
-          targetEndRadius,
-          splitProgress,
-        );
-        const localTwigGrowth = Math.min(1.0, twigAvailability * 1.5);
-
-        this._generateLSystem(
-          splitOrigin,
-          twigDir,
-          nextLength * localTwigGrowth,
-          nextRadius * Math.pow(localTwigGrowth, 1.2),
-          nextDepth,
-          maxDepth,
-          growthFactor,
-          parentRadiusAtSplit,
-          originalGrowth
-        );
+    } else if (currentDepth === 1 && growthFactor > 0.12) {
+      const tAvail = (growthFactor - 0.12) / 0.88;
+      for (let i = 0; i < 3; i++) {
+        const progress = 0.35 + i * 0.2;
+        const tangent = branchCurve.getTangentAt(progress);
+        const side = new THREE.Vector3(0, 1, 0).cross(tangent).normalize();
+        if (side.lengthSq() < 0.001) side.set(1, 0, 0);
+        const tDir = new THREE.Vector3().copy(tangent).addScaledVector(side, (i === 0 ? 1.0 : i === 1 ? -1.0 : 0.3) * 0.85);
+        tDir.y += 0.1;
+        this._generateLSystem(branchCurve.getPointAt(progress), tDir.normalize(), nextLength * Math.min(1.0, tAvail * 1.5), nextRadius * Math.pow(Math.min(1.0, tAvail * 1.5), 1.2), nextDepth, maxDepth, growthFactor, THREE.MathUtils.lerp(radius, targetEndRadius, progress), originalGrowth, path + "-t" + i);
       }
-    }
-
-    if (currentDepth === 2 && growthFactor > 0.22) {
-      const foliageAvailability = (growthFactor - 0.22) / 0.78;
-      const numShoots = 3;
-
-      for (let i = 0; i < numShoots; i++) {
-        const splitProgress = 0.4 + i * 0.22;
-        const splitOrigin = branchCurve.getPointAt(splitProgress);
-        const parentTangent = branchCurve.getTangentAt(splitProgress);
-        const lateralDir = new THREE.Vector3(
-          Math.cos((i / numShoots) * Math.PI * 2),
-          0.3,
-          Math.sin((i / numShoots) * Math.PI * 2),
-        ).normalize();
-
-        const shootDir = new THREE.Vector3()
-          .copy(parentTangent)
-          .addScaledVector(lateralDir, 0.7)
-          .normalize();
-        const parentRadiusAtSplit = THREE.MathUtils.lerp(
-          radius,
-          targetEndRadius,
-          splitProgress,
-        );
-        const localShootGrowth = Math.min(1.0, foliageAvailability * 1.7);
-
-        this._generateLSystem(
-          splitOrigin,
-          shootDir,
-          nextLength * localShootGrowth,
-          nextRadius * Math.pow(localShootGrowth, 1.2),
-          nextDepth,
-          maxDepth,
-          growthFactor,
-          parentRadiusAtSplit,
-          originalGrowth
-        );
+    } else if (currentDepth === 2 && growthFactor > 0.22) {
+      const fAvail = (growthFactor - 0.22) / 0.78;
+      for (let i = 0; i < 3; i++) {
+        const progress = 0.4 + i * 0.22;
+        const lat = new THREE.Vector3(Math.cos((i / 3) * Math.PI * 2), 0.3, Math.sin((i / 3) * Math.PI * 2)).normalize();
+        const sDir = new THREE.Vector3().copy(branchCurve.getTangentAt(progress)).addScaledVector(lat, 0.7).normalize();
+        this._generateLSystem(branchCurve.getPointAt(progress), sDir, nextLength * Math.min(1.0, fAvail * 1.7), nextRadius * Math.pow(Math.min(1.0, fAvail * 1.7), 1.2), nextDepth, maxDepth, growthFactor, THREE.MathUtils.lerp(radius, targetEndRadius, progress), originalGrowth, path + "-sh" + i);
       }
     }
   }
