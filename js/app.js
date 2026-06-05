@@ -61,6 +61,16 @@ class App {
     window.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
     window.addEventListener('keydown', (e) => this.handleKey(e));
 
+    const homeLink = document.getElementById('home-link');
+    if (homeLink) {
+      homeLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        if (!this.isTransitioning && this.currentSectionIndex !== 0) {
+          this.goToSection(0);
+        }
+      });
+    }
+
     requestAnimationFrame((timestamp) => {
       this.lastFpsUpdate = timestamp;
       this.lastTimestamp = timestamp;
