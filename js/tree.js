@@ -291,14 +291,42 @@ export class Tree {
       apple.userData = { type: 'fruit', id: i };
       apple.castShadow = true;
       
-      // NEW: Add a "Halo" mesh for the bloom effect
-      const haloGeo = new THREE.SphereGeometry(0.5, 16, 16);
-      const haloMat = new THREE.MeshBasicMaterial({
-        color: "#ff8888",
-        transparent: true,
-        opacity: 0.0, // Hidden by default
+      // NEW: Fresnel Bloom Halo for high-end glow
+      const haloGeo = new THREE.SphereGeometry(0.48, 24, 24);
+      const haloMat = new THREE.ShaderMaterial({
+        uniforms: {
+          opacity: { value: 0.0 }
+        },
+        vertexShader: `
+          varying vec3 vNormal;
+          void main() {
+            vNormal = normalize(normalMatrix * normal);
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: `
+          uniform float opacity;
+          varying vec3 vNormal;
+          
+          vec3 brightnessToColor(float b){
+              b *= 0.25;
+              return (vec3(b, b*b, b*b*b*b)/0.25)*0.6;
+          }
+
+          void main() {
+            vec3 n = normalize(vNormal);
+            // View-space Fresnel
+            float fresnel = pow(1.0 - abs(dot(n, vec3(0.0, 0.0, 1.0))), 3.0);
+            
+            // Apply hue logic from reference
+            vec3 col = brightnessToColor(fresnel * 2.0 + 1.2);
+            
+            gl_FragColor = vec4(col, fresnel * opacity);
+          }
+        `,
+        side: THREE.BackSide,
         blending: THREE.AdditiveBlending,
-        side: THREE.BackSide
+        transparent: true
       });
       const halo = new THREE.Mesh(haloGeo, haloMat);
       halo.name = 'halo';

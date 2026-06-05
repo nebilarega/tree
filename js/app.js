@@ -204,17 +204,17 @@ class App {
         if (this.hoveredApple !== fruit.object) {
           if (this.hoveredApple) {
             const oldHalo = this.hoveredApple.getObjectByName('halo');
-            if (oldHalo) oldHalo.material.opacity = 0;
+            if (oldHalo) oldHalo.material.uniforms.opacity.value = 0;
           }
           this.hoveredApple = fruit.object;
           const halo = this.hoveredApple.getObjectByName('halo');
-          if (halo) halo.material.opacity = 0.6;
+          if (halo) halo.material.uniforms.opacity.value = 0.6;
           document.body.style.cursor = 'pointer';
         }
       } else {
         if (this.hoveredApple) {
           const halo = this.hoveredApple.getObjectByName('halo');
-          if (halo) halo.material.opacity = 0;
+          if (halo) halo.material.uniforms.opacity.value = 0;
           this.hoveredApple = null;
           document.body.style.cursor = 'default';
         }
@@ -289,3 +289,4 @@ class App {
 }
 
 new App();
+
