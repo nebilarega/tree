@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { scene, camera, controls, renderer, sky, onResize } from './scene.js';
-import { rebuildTreeImmediate } from './tree.js';
+import { rebuildTreeImmediate, leafMaterial } from './tree.js';
 import { fpsValEl, rebuildValEl, setupGrowthButtons } from './ui.js';
 import { initDirt, spawnDirt, updateDirt } from './dirt.js';
 
@@ -67,6 +67,11 @@ function animate(timestamp) {
 
   if (sky.material.uniforms['cameraPos']) {
     sky.material.uniforms['cameraPos'].value.copy(camera.position);
+  }
+
+  // Update leaf wind uniform
+  if (leafMaterial.userData.shader) {
+    leafMaterial.userData.shader.uniforms.time.value = timestamp * 0.001;
   }
 
   controls.update();

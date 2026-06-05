@@ -54,6 +54,36 @@ export const leafMaterial = new THREE.MeshStandardMaterial({
   envMapIntensity: 1.35,
 });
 
+// Inject a lightweight vertex shader for wind sway
+leafMaterial.onBeforeCompile = (shader) => {
+  shader.uniforms.time = { value: 0 };
+  leafMaterial.userData.shader = shader;
+
+  shader.vertexShader = `
+    uniform float time;
+  ` + shader.vertexShader;
+
+  shader.vertexShader = shader.vertexShader.replace(
+    '#include <begin_vertex>',
+    `
+    #include <begin_vertex>
+    
+    // Calculate a simple swaying motion
+    // Higher leaves sway more, and we use world position and local vertex position for variance
+    float localWind = sin(time * 2.0 + position.y * 5.0 + position.x * 2.0) * 0.03;
+    float globalWind = sin(time * 0.8) * 0.02;
+    
+    // Apply sway primarily to the tip of the leaf (local Y in the clump)
+    // We use a simple heuristic: vertices further from the clump origin move more
+    float swayScale = clamp(length(position) * 1.5, 0.0, 1.0);
+    
+    transformed.x += (localWind + globalWind) * swayScale;
+    transformed.z += (localWind * 0.5 + globalWind) * swayScale;
+    transformed.y += sin(time * 3.0 + position.z * 4.0) * 0.01 * swayScale;
+    `
+  );
+};
+
 const baseCylinderGeo = new THREE.CylinderGeometry(0.55, 1, 1, 5, 1, false);
 baseCylinderGeo.translate(0, 0.5, 0);
 
