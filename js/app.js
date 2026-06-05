@@ -1,97 +1,163 @@
-import * as THREE from 'three';
-import { scene, camera, controls, renderer, sky, onResize } from './scene.js';
-import { rebuildTreeImmediate, leafMaterial } from './tree.js';
-import { fpsValEl, rebuildValEl, setupGrowthButtons } from './ui.js';
-import { initDirt, spawnDirt, updateDirt } from './dirt.js';
+import { SceneManager } from "./scene.js";
+import { Tree } from "./tree.js";
+import { DirtSystem } from "./dirt.js";
+import { WateringCanSystem } from "./watering.js";
+import { fpsValEl, rebuildValEl, setupGrowthButtons } from "./ui.js";
 
-let targetGrowth = 0.0;
-let currentGrowth = 0.0;
-const growthStep = 0.005; // Reduced from 0.015 for slower growth
-let lastFpsUpdate = 0;
-let framesCount = 0;
-let userInteracted = false;
-let lastTimestamp = 0;
+class App {
+  constructor() {
+    this.targetGrowth = 0.0;
+    this.currentGrowth = 0.0;
+    this.pendingGrowth = null; // New: storage for growth target during watering
+    this.growthStep = 0.005;
+    this.lastFpsUpdate = 0;
+    this.framesCount = 0;
+    this.userInteracted = false;
+    this.lastTimestamp = 0;
 
-controls.addEventListener('start', () => {
-  userInteracted = true;
-});
+    this.sceneManager = new SceneManager();
+    this.tree = new Tree(this.sceneManager.scene);
+    this.dirtSystem = new DirtSystem(this.sceneManager.scene);
+    this.wateringCan = new WateringCanSystem(
+      this.sceneManager.scene,
+      (r, x, z) =>
+        Math.max(-7.01, this.dirtSystem.calculateSurfaceHeight(r, x, z) - 7.1),
+    );
 
-function animate(timestamp) {
-  requestAnimationFrame(animate);
-  framesCount++;
-
-  const dt = (timestamp - lastTimestamp) / 1000;
-  lastTimestamp = timestamp;
-
-  if (timestamp > lastFpsUpdate + 500) {
-    const fps = Math.round((framesCount * 1000) / (timestamp - lastFpsUpdate));
-    fpsValEl.innerText = fps;
-    lastFpsUpdate = timestamp;
-    framesCount = 0;
+    this.initialize();
   }
 
-  if (currentGrowth !== targetGrowth) {
-    const isGrowing = targetGrowth > currentGrowth;
-    currentGrowth =
-      currentGrowth < targetGrowth
-        ? Math.min(currentGrowth + growthStep, targetGrowth)
-        : Math.max(currentGrowth - growthStep, targetGrowth);
-    
-    if (isGrowing) {
-      // Amount starts at 1 and increases to 3 as growth reaches 100%
-      const amountToSpawn = 1 + Math.floor(currentGrowth * 2.5);
-      for(let i=0; i<amountToSpawn; i++) {
-        spawnDirt(currentGrowth);
+  initialize() {
+    this.sceneManager.controls.addEventListener("start", () => {
+      this.userInteracted = true;
+    });
+
+    setupGrowthButtons((value) => {
+      if (value !== this.currentGrowth) {
+        this.pendingGrowth = value;
+        this.wateringCan.trigger();
       }
+    });
+
+    this.sceneManager.onResize();
+    this.tree.rebuild(0);
+
+    window.addEventListener("resize", () => this.sceneManager.onResize());
+
+    requestAnimationFrame((timestamp) => {
+      this.lastFpsUpdate = timestamp;
+      this.lastTimestamp = timestamp;
+      this.animate(timestamp);
+    });
+  }
+
+  animate(timestamp) {
+    requestAnimationFrame((t) => this.animate(t));
+    this.framesCount++;
+
+    const dt = (timestamp - this.lastTimestamp) / 1000;
+    this.lastTimestamp = timestamp;
+
+    // FPS Counter
+    if (timestamp > this.lastFpsUpdate + 500) {
+      const fps = Math.round(
+        (this.framesCount * 1000) / (timestamp - this.lastFpsUpdate),
+      );
+      fpsValEl.innerText = fps;
+      this.lastFpsUpdate = timestamp;
+      this.framesCount = 0;
     }
-    
-    const duration = rebuildTreeImmediate(currentGrowth);
-    rebuildValEl.innerText = duration.toFixed(2);
+
+    // Watering Can Update
+    const peakHeight = -7.1 + this.dirtSystem.config.moundHeight;
+    this.wateringCan.update(dt || 0, peakHeight);
+
+    // If watering is done, apply the pending growth
+    if (!this.wateringCan.isActive && this.pendingGrowth !== null) {
+      this.targetGrowth = this.pendingGrowth;
+      this.pendingGrowth = null;
+    }
+
+    // Growth Logic
+    if (this.currentGrowth !== this.targetGrowth) {
+      const isGrowing = this.targetGrowth > this.currentGrowth;
+      this.currentGrowth =
+        this.currentGrowth < this.targetGrowth
+          ? Math.min(this.currentGrowth + this.growthStep, this.targetGrowth)
+          : Math.max(this.currentGrowth - this.growthStep, this.targetGrowth);
+
+      if (isGrowing) {
+        const amountToSpawn = 1 + Math.floor(this.currentGrowth * 2.5);
+        for (let i = 0; i < amountToSpawn; i++) {
+          this.dirtSystem.spawn(this.currentGrowth);
+        }
+      }
+
+      const duration = this.tree.rebuild(this.currentGrowth);
+      rebuildValEl.innerText = duration.toFixed(2);
+    }
+
+    // Dirt Update
+    this.dirtSystem.update(dt || 0);
+
+    // Camera/Target Lerp
+    const camStart = { x: 0, y: -4, z: 6 };
+    const camEnd = { x: 0, y: 4, z: 22 };
+    if (!this.userInteracted) {
+      this.sceneManager.camera.position.x = this._lerp(
+        camStart.x,
+        camEnd.x,
+        this.currentGrowth,
+      );
+      this.sceneManager.camera.position.y = this._lerp(
+        camStart.y,
+        camEnd.y,
+        this.currentGrowth,
+      );
+      this.sceneManager.camera.position.z = this._lerp(
+        camStart.z,
+        camEnd.z,
+        this.currentGrowth,
+      );
+    }
+
+    const targetStart = { x: 0, y: -6, z: 0 };
+    const targetEnd = { x: 0, y: 3, z: 0 };
+    this.sceneManager.controls.target.x = this._lerp(
+      targetStart.x,
+      targetEnd.x,
+      this.currentGrowth,
+    );
+    this.sceneManager.controls.target.y = this._lerp(
+      targetStart.y,
+      targetEnd.y,
+      this.currentGrowth,
+    );
+    this.sceneManager.controls.target.z = this._lerp(
+      targetStart.z,
+      targetEnd.z,
+      this.currentGrowth,
+    );
+
+    // Sky/Wind Updates
+    if (this.sceneManager.sky.material.uniforms["time"]) {
+      this.sceneManager.sky.material.uniforms["time"].value = timestamp * 0.001;
+    }
+    if (this.sceneManager.sky.material.uniforms["cameraPos"]) {
+      this.sceneManager.sky.material.uniforms["cameraPos"].value.copy(
+        this.sceneManager.camera.position,
+      );
+    }
+
+    this.tree.updateWind(timestamp * 0.001);
+
+    this.sceneManager.controls.update();
+    this.sceneManager.render();
   }
 
-  updateDirt(dt || 0);
-
-  const camStart = new THREE.Vector3(0, -4, 6);
-  const camEnd = new THREE.Vector3(0, 4, 22);
-  if (!userInteracted) {
-    camera.position.lerpVectors(camStart, camEnd, currentGrowth);
+  _lerp(start, end, t) {
+    return start * (1 - t) + end * t;
   }
-
-  const targetStart = new THREE.Vector3(0, -6, 0);
-  const targetEnd = new THREE.Vector3(0, 3, 0);
-  controls.target.lerpVectors(targetStart, targetEnd, currentGrowth);
-
-  if (sky.material.uniforms['time']) {
-    sky.material.uniforms['time'].value = timestamp * 0.001;
-  }
-
-  if (sky.material.uniforms['cameraPos']) {
-    sky.material.uniforms['cameraPos'].value.copy(camera.position);
-  }
-
-  // Update leaf wind uniform
-  if (leafMaterial.userData.shader) {
-    leafMaterial.userData.shader.uniforms.time.value = timestamp * 0.001;
-  }
-
-  controls.update();
-  renderer.render(scene, camera);
 }
 
-function initialize() {
-  setupGrowthButtons((value) => {
-    targetGrowth = value;
-  });
-
-  onResize();
-  initDirt();
-  rebuildTreeImmediate(0);
-  requestAnimationFrame((timestamp) => {
-    lastFpsUpdate = timestamp;
-    lastTimestamp = timestamp;
-    animate(timestamp);
-  });
-  window.addEventListener('resize', onResize);
-}
-
-initialize();
+new App();
