@@ -347,11 +347,11 @@ function generateLSystemTree(
 
   if (currentDepth === 4 && growthFactor > 0.05) {
     const individualLeafGrowthScale = THREE.MathUtils.clamp(
-      (growthFactor - 0.05) / 0.45,
+      (growthFactor - 0.05) / 0.32, // Reaches full size faster (was 0.45)
       0.0,
       1.0,
     );
-    const clumpsPerSegment = 4;
+    const clumpsPerSegment = 6; // Increased density (was 4)
     const stepDelta = Math.max(1, Math.floor(segments / 8));
 
     for (let k = 1; k <= segments; k += stepDelta) {

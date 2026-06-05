@@ -6,7 +6,7 @@ import { initDirt, spawnDirt, updateDirt } from './dirt.js';
 
 let targetGrowth = 0.0;
 let currentGrowth = 0.0;
-const growthStep = 0.015;
+const growthStep = 0.005; // Reduced from 0.015 for slower growth
 let lastFpsUpdate = 0;
 let framesCount = 0;
 let userInteracted = false;
