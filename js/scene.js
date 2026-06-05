@@ -61,11 +61,6 @@ export class SceneManager {
 
     this.ambLight = new THREE.AmbientLight("#111111", 0.2);
     this.scene.add(this.ambLight);
-
-    // Adding some fake volumetric light (subtle)
-    const bulb = new THREE.PointLight("#4ade80", 20, 50);
-    bulb.position.set(0, 5, 0);
-    this.scene.add(bulb);
   }
 
   initEnvironment() {

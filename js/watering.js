@@ -127,6 +127,11 @@ export class WateringCanSystem {
 
   _createMistSystem() {
     const mistPositions = new Float32Array(this.maxMistPoints * 3);
+    // Initialize points far away to prevent origin "pixel" artifact
+    for (let i = 0; i < this.maxMistPoints; i++) {
+      mistPositions[i * 3 + 1] = -999;
+    }
+    
     this.mistGeometry = new THREE.BufferGeometry();
     this.mistGeometry.setAttribute(
       "position",
