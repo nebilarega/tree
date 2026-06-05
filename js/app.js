@@ -39,6 +39,17 @@ class App {
   }
 
   initialize() {
+    // Disable browser automatic scroll restoration
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+
+    // Force scroll to top on refresh
+    window.scrollTo(0, 0);
+    this.currentScrollY = 0;
+    this.targetScrollY = 0;
+    this.currentSectionIndex = 0;
+
     this.sceneManager.controls.enabled = false;
 
     this.sceneManager.onResize();
@@ -56,7 +67,11 @@ class App {
       this.animate(timestamp);
     });
 
+    // Ensure only the first section is visible initially
     this.updateSectionVisibility();
+    
+    // Double-check scroll reset after a tiny delay for stubborn browsers
+    setTimeout(() => window.scrollTo(0, 0), 10);
   }
 
   handleWheel(e) {
