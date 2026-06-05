@@ -11,7 +11,7 @@ const camera = new THREE.PerspectiveCamera(
   2000000,
 );
 // Start camera close (zoomed-in) and pull back as the tree grows
-camera.position.set(0, -6.8, 6);
+camera.position.set(0, -4, 6);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -25,9 +25,10 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.minPolarAngle = 0;
 controls.maxPolarAngle = Math.PI / 2;
-controls.target.set(0, -7, 0);
+controls.target.set(0, -6, 0);
 controls.minDistance = 6;
 controls.maxDistance = 80;
+controls.update();
 
 const sky = new Sky();
 sky.scale.setScalar(450000);

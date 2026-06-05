@@ -61,6 +61,7 @@ function initialize() {
     targetGrowth = value;
   });
 
+  onResize();
   rebuildTreeImmediate(0);
   requestAnimationFrame((timestamp) => {
     lastFpsUpdate = timestamp;
