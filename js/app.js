@@ -12,8 +12,17 @@ class App {
     this.growthStep = 0.005;
     this.lastFpsUpdate = 0;
     this.framesCount = 0;
-    this.userInteracted = false;
     this.lastTimestamp = 0;
+    
+    // Transition State
+    this.isTransitioning = false;
+    this.currentSectionIndex = 0;
+    this.growthStages = [0, 0.25, 0.5, 0.75, 1.0];
+
+    // Custom Smooth Scroll State
+    this.currentScrollY = window.scrollY;
+    this.targetScrollY = window.scrollY;
+    this.scrollLerpFactor = 0.04; // Adjust for "slowness" - lower is slower
 
     this.sceneManager = new SceneManager();
     this.tree = new Tree(this.sceneManager.scene);
@@ -30,13 +39,16 @@ class App {
   }
 
   initialize() {
-    this.sceneManager.controls.enabled = false; // Disable orbit controls for a guided experience
+    this.sceneManager.controls.enabled = false;
 
     this.sceneManager.onResize();
     this.tree.rebuild(0);
     
     window.addEventListener('resize', () => this.sceneManager.onResize());
-    window.addEventListener('scroll', () => this.handleScroll());
+    
+    // Disable native scroll but capture intent
+    window.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
+    window.addEventListener('keydown', (e) => this.handleKey(e));
 
     requestAnimationFrame((timestamp) => {
       this.lastFpsUpdate = timestamp;
@@ -44,47 +56,57 @@ class App {
       this.animate(timestamp);
     });
 
-    this.handleScroll(); // Initial check
+    this.updateSectionVisibility();
   }
 
-  handleScroll() {
-    const scrollY = window.scrollY;
-    const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
-    const scrollProgress = scrollY / maxScroll;
+  handleWheel(e) {
+    if (this.isTransitioning) {
+      e.preventDefault();
+      return;
+    }
 
-    // Map scroll sections to discrete growth stages: 0, 0.25, 0.5, 0.75, 1.0
-    let nextTarget = 0;
-    if (scrollProgress < 0.1) {
-      nextTarget = 0;
-    } else if (scrollProgress < 0.3) {
-      nextTarget = 0.25;
-    } else if (scrollProgress < 0.5) {
-      nextTarget = 0.5;
-    } else if (scrollProgress < 0.75) {
-      nextTarget = 0.75;
+    if (Math.abs(e.deltaY) < 10) return;
+
+    if (e.deltaY > 0 && this.currentSectionIndex < this.sections.length - 1) {
+      this.goToSection(this.currentSectionIndex + 1);
+    } else if (e.deltaY < 0 && this.currentSectionIndex > 0) {
+      this.goToSection(this.currentSectionIndex - 1);
+    }
+    
+    e.preventDefault();
+  }
+
+  handleKey(e) {
+    if (this.isTransitioning) return;
+    if (e.key === 'ArrowDown' || e.key === ' ') {
+      if (this.currentSectionIndex < this.sections.length - 1) this.goToSection(this.currentSectionIndex + 1);
+    } else if (e.key === 'ArrowUp') {
+      if (this.currentSectionIndex > 0) this.goToSection(this.currentSectionIndex - 1);
+    }
+  }
+
+  goToSection(index) {
+    this.isTransitioning = true;
+    this.currentSectionIndex = index;
+    const nextTarget = this.growthStages[index];
+
+    // Set destination for custom scroll lerp
+    this.targetScrollY = this.sections[index].offsetTop;
+
+    if (nextTarget > this.currentGrowth) {
+      this.pendingGrowth = nextTarget;
+      this.wateringCan.trigger();
     } else {
-      nextTarget = 1.0;
+      this.targetGrowth = nextTarget;
     }
+  }
 
-    if (nextTarget !== this.targetGrowth && nextTarget !== this.pendingGrowth) {
-      // Trigger watering only if growing forward
-      if (nextTarget > this.currentGrowth) {
-        this.pendingGrowth = nextTarget;
-        this.wateringCan.trigger();
+  updateSectionVisibility() {
+    this.sectionContents.forEach((content, index) => {
+      if (index === this.currentSectionIndex) {
+        content.classList.add('visible');
       } else {
-        // Just shrink immediately if scrolling up
-        this.targetGrowth = nextTarget;
-      }
-    }
-
-    // Handle section visibility
-    this.sections.forEach((section, index) => {
-      const rect = section.getBoundingClientRect();
-      const isVisible = rect.top < window.innerHeight * 0.7 && rect.bottom > window.innerHeight * 0.3;
-      if (isVisible) {
-        this.sectionContents[index].classList.add('visible');
-      } else {
-        this.sectionContents[index].classList.remove('visible');
+        content.classList.remove('visible');
       }
     });
   }
@@ -95,6 +117,17 @@ class App {
 
     const dt = (timestamp - this.lastTimestamp) / 1000;
     this.lastTimestamp = timestamp;
+
+    // Custom Smooth Scroll Lerp
+    if (Math.abs(this.targetScrollY - this.currentScrollY) > 0.5) {
+      this.currentScrollY += (this.targetScrollY - this.currentScrollY) * this.scrollLerpFactor;
+      window.scrollTo(0, this.currentScrollY);
+      
+      // Update visibility when we're close to the destination
+      if (Math.abs(this.targetScrollY - this.currentScrollY) < 50) {
+         this.updateSectionVisibility();
+      }
+    }
 
     // FPS Counter
     if (timestamp > this.lastFpsUpdate + 500) {
@@ -108,7 +141,7 @@ class App {
     const peakHeight = -7.10 + this.dirtSystem.config.moundHeight;
     this.wateringCan.update(dt || 0, peakHeight);
 
-    // If watering is done, apply the pending growth
+    // Sequence Logic
     if (!this.wateringCan.isActive && this.pendingGrowth !== null) {
       this.targetGrowth = this.pendingGrowth;
       this.pendingGrowth = null;
@@ -133,9 +166,15 @@ class App {
       if (rebuildValEl) rebuildValEl.innerText = duration.toFixed(2);
     }
 
+    // Release Transition Lock
+    const isScrollDone = Math.abs(this.targetScrollY - this.currentScrollY) < 1.0;
+    if (this.isTransitioning && isScrollDone && !this.wateringCan.isActive && this.currentGrowth === this.targetGrowth) {
+      this.isTransitioning = false;
+    }
+
     this.dirtSystem.update(dt || 0);
 
-    // Dynamic Camera Path
+    // Camera Path
     const camStart = { x: -2, y: -4, z: 8 };
     const camEnd = { x: 3, y: 5, z: 25 };
     
