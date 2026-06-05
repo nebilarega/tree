@@ -29,6 +29,10 @@ class App {
     this.panTargetLookAt = new THREE.Vector3();
     this.userInteracted = false;
 
+    // Mobile Touch State
+    this.touchStartY = 0;
+    this.touchThreshold = 40; // Minimum swipe distance
+
     // Social UI state
     this.isSocialBoxOpen = false;
     this.pendingSocialType = null; // New: queue the box appearance
@@ -90,6 +94,11 @@ class App {
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('click', (e) => this.handleClick(e));
 
+    // Mobile Touch Events
+    window.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
+    window.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+    window.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+
     // Social Box Close Button
     const closeBtn = document.querySelector('#social-box .close-btn');
     if (closeBtn) {
@@ -121,6 +130,25 @@ class App {
   handleMouseMove(e) {
     this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  }
+
+  handleTouchStart(e) {
+    this.touchStartY = e.touches[0].clientY;
+  }
+
+  handleTouchEnd(e) {
+    if (this.isTransitioning || this.panningToApple) return;
+
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaY = this.touchStartY - touchEndY;
+
+    if (Math.abs(deltaY) > this.touchThreshold) {
+      if (deltaY > 0 && this.currentSectionIndex < this.sections.length - 1) {
+        this.goToSection(this.currentSectionIndex + 1);
+      } else if (deltaY < 0 && this.currentSectionIndex > 0) {
+        this.goToSection(this.currentSectionIndex - 1);
+      }
+    }
   }
 
   handleClick(e) {
