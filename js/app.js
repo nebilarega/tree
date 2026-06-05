@@ -25,7 +25,8 @@ class App {
     this.raycaster = new THREE.Raycaster();
     this.hoveredApple = null;
     this.panningToApple = false;
-    this.panTarget = new THREE.Vector3();
+    this.panTargetPos = new THREE.Vector3();
+    this.panTargetLookAt = new THREE.Vector3();
     this.userInteracted = false;
 
     // Custom Smooth Scroll State
@@ -99,19 +100,18 @@ class App {
     if (this.currentGrowth < 0.95 || this.isTransitioning) return;
     
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-    const intersects = this.raycaster.intersectObjects(this.tree.group.children);
-    const fruit = intersects.find(intersect => intersect.object.userData.type === 'fruit');
+    const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
+    const fruit = intersects.find(intersect => intersect.object.userData && intersect.object.userData.type === 'fruit');
 
     if (fruit) {
       this.panningToApple = true;
       this.userInteracted = true; 
-      fruit.object.getWorldPosition(this.panTarget);
       
-      this.sceneManager.controls.target.lerp(this.panTarget, 1.0);
+      const targetObj = fruit.object;
+      targetObj.getWorldPosition(this.panTargetLookAt);
       
-      const dir = new THREE.Vector3().subVectors(this.sceneManager.camera.position, this.panTarget).normalize();
-      const idealPos = new THREE.Vector3().copy(this.panTarget).addScaledVector(dir, 10);
-      this.sceneManager.camera.position.lerp(idealPos, 1.0);
+      const dir = new THREE.Vector3().subVectors(this.sceneManager.camera.position, this.panTargetLookAt).normalize();
+      this.panTargetPos.copy(this.panTargetLookAt).addScaledVector(dir, 6);
     }
   }
 
@@ -194,22 +194,27 @@ class App {
     const peakHeight = -7.10 + this.dirtSystem.config.moundHeight;
     this.wateringCan.update(dt || 0, peakHeight);
 
-    // Apple Hover Logic
+    // Apple Hover Logic (Halo/Bloom)
     if (this.currentGrowth >= 0.95 && !this.isTransitioning) {
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-      const intersects = this.raycaster.intersectObjects(this.tree.group.children);
-      const fruit = intersects.find(intersect => intersect.object.userData.type === 'fruit');
+      const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
+      const fruit = intersects.find(intersect => intersect.object.userData && intersect.object.userData.type === 'fruit');
 
       if (fruit) {
         if (this.hoveredApple !== fruit.object) {
-          if (this.hoveredApple) this.hoveredApple.scale.set(1, 1, 1);
+          if (this.hoveredApple) {
+            const oldHalo = this.hoveredApple.getObjectByName('halo');
+            if (oldHalo) oldHalo.material.opacity = 0;
+          }
           this.hoveredApple = fruit.object;
-          this.hoveredApple.scale.set(1.4, 1.4, 1.4); 
+          const halo = this.hoveredApple.getObjectByName('halo');
+          if (halo) halo.material.opacity = 0.6;
           document.body.style.cursor = 'pointer';
         }
       } else {
         if (this.hoveredApple) {
-          this.hoveredApple.scale.set(1, 1, 1);
+          const halo = this.hoveredApple.getObjectByName('halo');
+          if (halo) halo.material.opacity = 0;
           this.hoveredApple = null;
           document.body.style.cursor = 'default';
         }
@@ -249,21 +254,25 @@ class App {
 
     this.dirtSystem.update(dt || 0);
 
-    if (!this.panningToApple) {
+    if (this.panningToApple) {
+      this.sceneManager.camera.position.lerp(this.panTargetPos, 0.05);
+      this.sceneManager.controls.target.lerp(this.panTargetLookAt, 0.05);
+      
+      if (Math.abs(this.targetScrollY - this.currentScrollY) > 10) {
+        this.panningToApple = false;
+        this.userInteracted = false;
+      }
+    } else {
       const isMobile = window.innerWidth < 768;
       const camStart = { x: -2, y: -4, z: 8 };
-      const camEnd = isMobile 
-        ? { x: 3, y: 7, z: 35 } 
-        : { x: 3, y: 5, z: 25 };
+      const camEnd = isMobile ? { x: 3, y: 7, z: 35 } : { x: 3, y: 5, z: 25 };
       
       this.sceneManager.camera.position.x = this._lerp(camStart.x, camEnd.x, this.currentGrowth);
       this.sceneManager.camera.position.y = this._lerp(camStart.y, camEnd.y, this.currentGrowth);
       this.sceneManager.camera.position.z = this._lerp(camStart.z, camEnd.z, this.currentGrowth);
 
       const targetStart = { x: 0, y: -6, z: 0 };
-      const targetEnd = isMobile
-        ? { x: 0, y: 6, z: 0 }
-        : { x: 0, y: 4, z: 0 };
+      const targetEnd = isMobile ? { x: 0, y: 6, z: 0 } : { x: 0, y: 4, z: 0 };
       this.sceneManager.controls.target.x = this._lerp(targetStart.x, targetEnd.x, this.currentGrowth);
       this.sceneManager.controls.target.y = this._lerp(targetStart.y, targetEnd.y, this.currentGrowth);
       this.sceneManager.controls.target.z = this._lerp(targetStart.z, targetEnd.z, this.currentGrowth);

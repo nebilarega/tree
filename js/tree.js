@@ -290,6 +290,20 @@ export class Tree {
       
       apple.userData = { type: 'fruit', id: i };
       apple.castShadow = true;
+      
+      // NEW: Add a "Halo" mesh for the bloom effect
+      const haloGeo = new THREE.SphereGeometry(0.5, 16, 16);
+      const haloMat = new THREE.MeshBasicMaterial({
+        color: "#ff8888",
+        transparent: true,
+        opacity: 0.0, // Hidden by default
+        blending: THREE.AdditiveBlending,
+        side: THREE.BackSide
+      });
+      const halo = new THREE.Mesh(haloGeo, haloMat);
+      halo.name = 'halo';
+      apple.add(halo);
+
       this.group.add(apple);
     }
   }
