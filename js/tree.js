@@ -41,6 +41,7 @@ export class Tree {
 
     this.leafTransforms = [];
     this.leafColors = [];
+    this.fruitTransforms = []; // NEW: track fruit locations
     this.branchGeometries = [];
     this.instancedTwigTransforms = [];
 
@@ -176,6 +177,7 @@ export class Tree {
 
     this.leafTransforms = [];
     this.leafColors = [];
+    this.fruitTransforms = []; // Reset locations
     this.branchGeometries = [];
     this.instancedTwigTransforms = [];
 
@@ -195,6 +197,8 @@ export class Tree {
       0,
       5,
       calculatedInternalGrowth,
+      null,
+      growthValue
     );
 
     if (this.branchGeometries.length > 0) {
@@ -243,7 +247,47 @@ export class Tree {
       this.group.add(leafInstancedMesh);
     }
 
+    // NEW: Render Apples at 100% stage
+    if (growthValue > 0.9 && this.fruitTransforms.length > 0) {
+      this._renderFruits();
+    }
+
     return performance.now() - startTime;
+  }
+
+  _renderFruits() {
+    const fruitGeo = new THREE.SphereGeometry(0.35, 16, 16); // Slightly larger and smoother
+    const fruitMat = new THREE.MeshStandardMaterial({ 
+      color: "#ff0000", 
+      roughness: 0.1,
+      metalness: 0.2,
+      emissive: "#880000", // Stronger glow to ensure visibility
+      envMapIntensity: 2.5 
+    });
+
+    const numApples = 10; // Increase count for better discovery
+    const poolSize = this.fruitTransforms.length;
+    
+    // Scratch variables for matrix extraction
+    const position = new THREE.Vector3();
+    const quaternion = new THREE.Quaternion();
+    const scale = new THREE.Vector3();
+
+    for (let i = 0; i < numApples; i++) {
+      const index = Math.floor((i / numApples) * poolSize);
+      const transform = this.fruitTransforms[index];
+      if (!transform) continue;
+
+      // CRITICAL: Extract position/quaternion but IGNORE the twig's tiny scale
+      transform.decompose(position, quaternion, scale);
+
+      const apple = new THREE.Mesh(fruitGeo, fruitMat);
+      apple.position.copy(position);
+      apple.quaternion.copy(quaternion);
+      apple.userData = { type: 'fruit', id: i };
+      apple.castShadow = true;
+      this.group.add(apple);
+    }
   }
 
   updateWind(time) {
@@ -322,6 +366,7 @@ export class Tree {
     maxDepth,
     growthFactor,
     parentRadius = null,
+    originalGrowth = 0
   ) {
     if (currentDepth > maxDepth || length < 0.03 || radius < 0.001) return;
 
@@ -382,6 +427,14 @@ export class Tree {
       this._scratchScale.set(radius, length, radius);
       matrix.compose(startPos, this._scratchQuat, this._scratchScale);
       this.instancedTwigTransforms.push(matrix);
+
+      // FORCE CAPTURE: Reliable terminal branch end points
+      if (originalGrowth > 0.8) {
+        const fruitMatrix = new THREE.Matrix4().copy(matrix);
+        // Translate to the tip of this final segment
+        fruitMatrix.multiply(new THREE.Matrix4().makeTranslation(0, 1.0, 0));
+        this.fruitTransforms.push(fruitMatrix);
+      }
     } else {
       const branchGeo = this._createBranchGeometry(
         branchCurve,
@@ -439,6 +492,7 @@ export class Tree {
           maxDepth,
           growthFactor,
           parentRadiusAtSplit,
+          originalGrowth
         );
       }
     }
@@ -529,6 +583,13 @@ export class Tree {
             matrix.multiply(scaleMatrix);
             this.leafTransforms.push(matrix);
 
+            // NEW: Capture fruit locations at 100% stage during leaf spawning
+            if (originalGrowth > 0.95 && l === 0 && k % 12 === 0) {
+                const fruitMatrix = new THREE.Matrix4().copy(matrix);
+                fruitMatrix.multiply(new THREE.Matrix4().makeTranslation(0, -0.2, 0));
+                this.fruitTransforms.push(fruitMatrix);
+            }
+
             const selectedBaseColor =
               leafPalettes[Math.floor(randB * leafPalettes.length)];
             const hueShift = (randA - 0.5) * 0.06;
@@ -585,6 +646,7 @@ export class Tree {
             maxDepth,
             growthFactor,
             parentRadiusAtSplit,
+            originalGrowth
           );
         }
       }
@@ -626,6 +688,7 @@ export class Tree {
           maxDepth,
           growthFactor,
           parentRadiusAtSplit,
+          originalGrowth
         );
       }
     }
@@ -664,6 +727,7 @@ export class Tree {
           maxDepth,
           growthFactor,
           parentRadiusAtSplit,
+          originalGrowth
         );
       }
     }
