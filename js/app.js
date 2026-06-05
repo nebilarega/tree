@@ -125,6 +125,22 @@ class App {
 
     this.updateSectionVisibility();
     setTimeout(() => window.scrollTo(0, 0), 10);
+
+    // Hide Loader when initial scene is ready
+    setTimeout(() => this.hideLoader(), 2500); // Give enough time for a great first impression
+  }
+
+  hideLoader() {
+    const loader = document.getElementById('loader');
+    if (loader) {
+      loader.classList.add('fade-out');
+      // Lock scroll briefly to allow entry animation
+      document.body.classList.add('locked');
+      setTimeout(() => {
+        document.body.classList.remove('locked');
+        this.goToSection(0); // Trigger hero reveal
+      }, 1000);
+    }
   }
 
   handleMouseMove(e) {
