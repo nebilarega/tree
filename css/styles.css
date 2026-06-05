@@ -247,19 +247,139 @@ section:nth-child(even) p {
   margin-left: auto;
 }
 
-.apple-tooltip {
+#apple-tooltip {
+  position: fixed;
   pointer-events: none;
   z-index: 1000;
   white-space: nowrap;
-  font-family: Arial, sans-serif;
-  font-weight: bold;
-  font-size: 14px;
+  font-family: var(--font-display);
+  letter-spacing: 0.1em;
+  font-size: 0.9rem;
   color: white;
-  padding: 5px 12px;
-  border-radius: 15px;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-  border: 2px solid rgba(255,255,255,0.2);
+  padding: 8px 16px;
+  border-radius: 4px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  border: 1px solid rgba(255,255,255,0.1);
+  text-transform: uppercase;
+  backdrop-filter: blur(5px);
+  background: rgba(0, 0, 0, 0.6);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.9);
+  transition: opacity 0.3s cubic-bezier(0.19, 1, 0.22, 1), transform 0.3s cubic-bezier(0.19, 1, 0.22, 1);
+}
+
+#apple-tooltip.visible {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Refined Social Info Box Styles */
+#social-box {
+  position: fixed;
+  top: 50%;
+  right: 6vw;
+  transform: translateY(-50%) translateX(40px);
+  width: 360px;
+  background: rgba(8, 8, 8, 0.7);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 3rem;
+  z-index: 200;
+  color: white;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease, transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: -30px 40px 80px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+}
+
+#social-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 4px;
+  background: linear-gradient(90deg, var(--accent-color), transparent);
+}
+
+#social-box.visible {
+  opacity: 1;
+  pointer-events: all;
+  transform: translateY(-50%) translateX(0);
+}
+
+#social-box .close-btn {
+  position: absolute;
+  top: 1.5rem;
+  right: 1.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1.2rem;
+  transition: all 0.3s ease;
+}
+
+#social-box .close-btn:hover {
+  background: var(--accent-color);
+  color: black;
+  border-color: var(--accent-color);
+}
+
+#social-box h3 {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
   opacity: 0;
   transform: translateY(10px);
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  transition: all 0.5s ease 0.2s;
+}
+
+#social-box p {
+  font-size: 1rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2.5rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.5s ease 0.35s;
+}
+
+#social-box .social-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: black;
+  background: var(--accent-color);
+  text-decoration: none;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  letter-spacing: 0.2em;
+  padding: 1.2rem;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 0.5s ease 0.5s;
+}
+
+#social-box .social-link:hover {
+  background: white;
+  transform: translateY(-2px);
+}
+
+#social-box.visible h3,
+#social-box.visible p,
+#social-box.visible .social-link {
+  opacity: 1;
+  transform: translateY(0);
 }

@@ -29,6 +29,27 @@ class App {
     this.panTargetLookAt = new THREE.Vector3();
     this.userInteracted = false;
 
+    // Social UI state
+    this.isSocialBoxOpen = false;
+    this.pendingSocialType = null; // New: queue the box appearance
+    this.socialData = {
+      'LinkedIn': {
+        title: 'LinkedIn',
+        desc: "Connect with me for professional networking, technical discussions, and career opportunities in software engineering.",
+        url: 'https://linkedin.com'
+      },
+      'GitHub': {
+        title: 'GitHub',
+        desc: "Explore my open-source projects, experiments in creative coding, and professional portfolio repositories.",
+        url: 'https://github.com'
+      },
+      'Portfolio': {
+        title: 'Creative Works',
+        desc: "A deeper dive into my creative process, design philosophies, and architectural case studies.",
+        url: '#'
+      }
+    };
+
     // Custom Smooth Scroll State
     this.currentScrollY = window.scrollY;
     this.targetScrollY = window.scrollY;
@@ -68,6 +89,12 @@ class App {
     window.addEventListener('keydown', (e) => this.handleKey(e));
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
     window.addEventListener('click', (e) => this.handleClick(e));
+
+    // Social Box Close Button
+    const closeBtn = document.querySelector('#social-box .close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => this.closeSocialBox());
+    }
 
     const homeLink = document.getElementById('home-link');
     if (homeLink) {
@@ -120,17 +147,53 @@ class App {
       this.userInteracted = true; 
       
       this.panTargetLookAt.copy(new THREE.Vector3().setFromMatrixPosition(fruitObject.matrixWorld));
-      
       const dir = new THREE.Vector3().subVectors(this.sceneManager.camera.position, this.panTargetLookAt).normalize();
       this.panTargetPos.copy(this.panTargetLookAt).addScaledVector(dir, 6);
+
+      // Queue Social UI (don't show yet)
+      const social = fruitObject.userData.social;
+      if (social && this.socialData[social]) {
+        this.pendingSocialType = social;
+      } else {
+        this.closeSocialBox(false); 
+      }
+    } else {
+      this.closeSocialBox();
+    }
+  }
+
+  openSocialBox(type) {
+    const data = this.socialData[type];
+    const box = document.getElementById('social-box');
+    const title = document.getElementById('social-title');
+    const desc = document.getElementById('social-desc');
+    const url = document.getElementById('social-url');
+
+    if (box && data) {
+      title.textContent = data.title;
+      desc.textContent = data.desc;
+      url.href = data.url;
+      url.textContent = `VISIT ${data.title.toUpperCase()}`;
+      box.classList.add('visible');
+      this.isSocialBoxOpen = true;
+    }
+  }
+
+  closeSocialBox(resetCamera = true) {
+    const box = document.getElementById('social-box');
+    if (box) box.classList.remove('visible');
+    this.isSocialBoxOpen = false;
+    
+    if (resetCamera) {
+      this.panningToApple = false;
+      this.userInteracted = false;
     }
   }
 
   handleWheel(e) {
     if (this.isTransitioning || this.panningToApple) {
       if (this.panningToApple && Math.abs(e.deltaY) > 20) {
-        this.panningToApple = false;
-        this.userInteracted = false;
+        this.closeSocialBox(); // Reset UI on manual scroll
       }
       e.preventDefault();
       return;
@@ -157,6 +220,7 @@ class App {
   }
 
   goToSection(index) {
+    this.closeSocialBox(); // Hide UI on transition start
     this.isTransitioning = true;
     this.currentSectionIndex = index;
     const nextTarget = this.growthStages[index];
@@ -178,6 +242,16 @@ class App {
         content.classList.remove('visible');
       }
     });
+
+    // Update scroll hint text
+    const hint = document.getElementById('scroll-hint');
+    if (hint) {
+      if (this.currentSectionIndex === this.sections.length - 1) {
+        hint.textContent = 'Scroll to Return';
+      } else {
+        hint.textContent = 'Scroll to Nourish';
+      }
+    }
   }
 
   animate(timestamp) {
@@ -228,8 +302,14 @@ class App {
       if (hoveredFruit) {
         const currentPath = hoveredFruit.userData.path;
         
-        // If we switched apples or it's a new frame's fresh mesh
+        // If we switched apples
         if (this.hoveredPath !== currentPath) {
+          // Reset PREVIOUS halo immediately
+          if (this.activeHalo) {
+            this.activeHalo.material.uniforms.opacity.value = 0;
+            this.activeHalo = null;
+          }
+
           this.hoveredPath = currentPath;
           
           if (tooltipEl) {
@@ -238,25 +318,32 @@ class App {
             tooltipEl.style.backgroundColor = social === 'LinkedIn' ? '#0077b5' : 
                                             social === 'GitHub' ? '#111111' : 
                                             social === 'Portfolio' ? '#ff6666' : '#333333';
-            tooltipEl.style.opacity = '1';
+            tooltipEl.classList.add('visible');
           }
         }
 
         // Continually sync visual effects for the NEW mesh in this frame
         const halo = hoveredFruit.getObjectByName('halo');
-        if (halo) halo.material.uniforms.opacity.value = 0.6;
+        if (halo) {
+          halo.material.uniforms.opacity.value = 0.6;
+          this.activeHalo = halo; // Keep reference to reset it later
+        }
         
         if (tooltipEl) {
           const pos = this._toScreenPosition(hoveredFruit);
           tooltipEl.style.left = `${pos.x}px`;
           tooltipEl.style.top = `${pos.y - 40}px`; 
-          tooltipEl.style.transform = 'translate(-50%, -50%)';
         }
 
         document.body.style.cursor = 'pointer';
       } else {
+        // MOUSE LEFT: Reset everything
+        if (this.activeHalo) {
+          this.activeHalo.material.uniforms.opacity.value = 0;
+          this.activeHalo = null;
+        }
         this.hoveredPath = null;
-        if (tooltipEl) tooltipEl.style.opacity = '0';
+        if (tooltipEl) tooltipEl.classList.remove('visible');
         document.body.style.cursor = 'default';
       }
     }
@@ -298,9 +385,17 @@ class App {
       this.sceneManager.camera.position.lerp(this.panTargetPos, 0.05);
       this.sceneManager.controls.target.lerp(this.panTargetLookAt, 0.05);
       
+      // Reveal Social UI after zoom is 95% complete
+      if (this.pendingSocialType) {
+        const dist = this.sceneManager.camera.position.distanceTo(this.panTargetPos);
+        if (dist < 0.5) {
+          this.openSocialBox(this.pendingSocialType);
+          this.pendingSocialType = null;
+        }
+      }
+
       if (Math.abs(this.targetScrollY - this.currentScrollY) > 10) {
-        this.panningToApple = false;
-        this.userInteracted = false;
+        this.closeSocialBox(); // Reset everything on scroll
       }
     } else {
       const isMobile = window.innerWidth < 768;
