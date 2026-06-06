@@ -61,6 +61,7 @@ class App {
     this.scrollLerpFactor = 0.04;
 
     this.sceneManager = new SceneManager();
+    this.hdrLoaded = false;
     this.tree = new Tree(this.sceneManager.scene);
     this.dirtSystem = new DirtSystem(this.sceneManager.scene);
     this.wateringCan = new WateringCanSystem(
@@ -127,13 +128,22 @@ class App {
     this.updateSectionVisibility();
     setTimeout(() => window.scrollTo(0, 0), 10);
 
-    // Hide Loader when initial scene is ready
-    setTimeout(() => this.hideLoader(), 2500); // Give enough time for a great first impression
+    // Synchronized Loading: Start HDR load and minimum timer
+    let minTimeElapsed = false;
+    setTimeout(() => {
+      minTimeElapsed = true;
+      if (this.hdrLoaded) this.hideLoader();
+    }, 2500);
+
+    this.sceneManager.initEnvironment(() => {
+      this.hdrLoaded = true;
+      if (minTimeElapsed) this.hideLoader();
+    });
   }
 
   hideLoader() {
     const loader = document.getElementById('loader');
-    if (loader) {
+    if (loader && !loader.classList.contains('fade-out')) {
       loader.classList.add('fade-out');
       // Lock scroll briefly to allow entry animation
       document.body.classList.add('locked');

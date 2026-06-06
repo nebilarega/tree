@@ -31,7 +31,6 @@ export class SceneManager {
     this.controls.update();
 
     this.initLights();
-    this.initEnvironment();
     this.initGround();
   }
 
@@ -66,12 +65,12 @@ export class SceneManager {
     this.scene.add(this.ambLight);
   }
 
-  initEnvironment() {
+  initEnvironment(onLoaded) {
     const rgbeLoader = new RGBELoader();
     rgbeLoader.load("/rainforest.hdr", (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping;
       this.scene.environment = texture;
-      // We don't set background to texture to keep the clean studio look
+      if (onLoaded) onLoaded();
     });
   }
 
