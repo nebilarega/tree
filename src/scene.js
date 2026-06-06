@@ -36,12 +36,15 @@ export class SceneManager {
   }
 
   initLights() {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+    const shadowRes = isMobile ? 1024 : 2048;
+
     // Main Key Light (Soft, Moon-like)
     this.sunLight = new THREE.DirectionalLight("#e0f2fe", 2.5);
     this.sunLight.position.set(10, 20, 10);
     this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = 2048;
-    this.sunLight.shadow.mapSize.height = 2048;
+    this.sunLight.shadow.mapSize.width = shadowRes;
+    this.sunLight.shadow.mapSize.height = shadowRes;
     this.sunLight.shadow.camera.left = -30;
     this.sunLight.shadow.camera.right = 30;
     this.sunLight.shadow.camera.top = 30;
@@ -65,7 +68,7 @@ export class SceneManager {
 
   initEnvironment() {
     const rgbeLoader = new RGBELoader();
-    rgbeLoader.load("rainforest.hdr", (texture) => {
+    rgbeLoader.load("/rainforest.hdr", (texture) => {
       texture.mapping = THREE.EquirectangularReflectionMapping;
       this.scene.environment = texture;
       // We don't set background to texture to keep the clean studio look

@@ -39,8 +39,11 @@ export class Tree {
 
     this.leafClumpGeometry = this._createLeafClumpGeometry();
 
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
+
     // Cache Fruit Geometries and Materials for performance
-    this.fruitGeo = new THREE.SphereGeometry(0.35, 12, 12);
+    const fruitDetail = this.isMobile ? 8 : 12;
+    this.fruitGeo = new THREE.SphereGeometry(0.35, fruitDetail, fruitDetail);
     this.fruitMat = new THREE.MeshStandardMaterial({ 
       color: "#ff0000", 
       roughness: 0.1,
@@ -49,19 +52,26 @@ export class Tree {
       envMapIntensity: 2.5 
     });
 
-    this.haloGeo = new THREE.SphereGeometry(0.48, 16, 16);
+    this.haloGeo = new THREE.SphereGeometry(0.48, fruitDetail, fruitDetail);
     this.haloMatTemplate = new THREE.ShaderMaterial({
-      uniforms: { opacity: { value: 0.0 } },
+      uniforms: { 
+        opacity: { value: 0.0 },
+        activeInstance: { value: -1.0 }
+      },
       vertexShader: `
         varying vec3 vNormal;
+        varying float vInstanceId;
         void main() {
           vNormal = normalize(normalMatrix * normal);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          vInstanceId = float(gl_InstanceID);
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform float opacity;
+        uniform float activeInstance;
         varying vec3 vNormal;
+        varying float vInstanceId;
         vec3 brightnessToColor(float b){
             b *= 0.25;
             return (vec3(b, b*b, b*b*b*b)/0.25)*0.6;
@@ -70,7 +80,8 @@ export class Tree {
           vec3 n = normalize(vNormal);
           float fresnel = pow(1.0 - abs(dot(n, vec3(0.0, 0.0, 1.0))), 3.0);
           vec3 col = brightnessToColor(fresnel * 2.0 + 1.2);
-          gl_FragColor = vec4(col, fresnel * opacity);
+          float alpha = (abs(vInstanceId - activeInstance) < 0.1) ? opacity : 0.0;
+          gl_FragColor = vec4(col, fresnel * alpha);
         }
       `,
       side: THREE.BackSide,
@@ -78,6 +89,10 @@ export class Tree {
       transparent: true,
       depthWrite: false
     });
+
+    this.fruitInstancedMesh = null;
+    this.haloInstancedMesh = null;
+    this.fruitData = []; // Store metadata for raycasting
 
     this.leafTransforms = [];
     this.leafColors = [];
@@ -217,6 +232,7 @@ export class Tree {
     });
     this.group.clear();
 
+    this.fruitData = [];
     this.leafTransforms = [];
     this.leafColors = [];
     this.fruitTransforms = []; 
@@ -265,6 +281,7 @@ export class Tree {
       );
       twigInstancedMesh.castShadow = true;
       twigInstancedMesh.receiveShadow = true;
+      twigInstancedMesh.frustumCulled = false;
       for (let i = 0; i < this.instancedTwigTransforms.length; i++) {
         twigInstancedMesh.setMatrixAt(i, this.instancedTwigTransforms[i]);
       }
@@ -280,6 +297,7 @@ export class Tree {
       );
       leafInstancedMesh.castShadow = true;
       leafInstancedMesh.receiveShadow = true;
+      leafInstancedMesh.frustumCulled = false;
       for (let i = 0; i < this.leafTransforms.length; i++) {
         leafInstancedMesh.setMatrixAt(i, this.leafTransforms[i]);
         leafInstancedMesh.setColorAt(i, this.leafColors[i]);
@@ -328,16 +346,32 @@ export class Tree {
       }
     }
 
-    const position = new THREE.Vector3();
-    const quaternion = new THREE.Quaternion();
-    const twigScale = new THREE.Vector3();
+    this.fruitInstancedMesh = new THREE.InstancedMesh(this.fruitGeo, this.fruitMat, indicesToRender.length);
+    this.haloInstancedMesh = new THREE.InstancedMesh(this.haloGeo, this.haloMatTemplate, indicesToRender.length);
+    
+    this.fruitInstancedMesh.castShadow = true;
+    this.fruitInstancedMesh.frustumCulled = false;
+    this.haloInstancedMesh.frustumCulled = false;
+    this.fruitInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this.haloInstancedMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    
+    this.fruitData = [];
+    const matrix = new THREE.Matrix4();
+    const pos = new THREE.Vector3();
+    const quat = new THREE.Quaternion();
+    const sc = new THREE.Vector3();
 
     indicesToRender.forEach((item, i) => {
       const fruitData = sortedPool[item.index];
       if (!fruitData) return;
 
-      const transform = fruitData.matrix;
-      transform.decompose(position, quaternion, twigScale);
+      // Decompose to ignore branch scale
+      fruitData.matrix.decompose(pos, quat, sc);
+      
+      matrix.compose(pos, quat, new THREE.Vector3(individualScale, individualScale, individualScale));
+      
+      this.fruitInstancedMesh.setMatrixAt(i, matrix);
+      this.haloInstancedMesh.setMatrixAt(i, matrix);
 
       let socialConfig = null;
       if (item.isSocial) {
@@ -345,26 +379,18 @@ export class Tree {
           socialConfig = socialConfigs[sIdx];
       }
 
-      const apple = new THREE.Mesh(this.fruitGeo, this.fruitMat);
-      apple.position.copy(position);
-      apple.quaternion.copy(quaternion);
-      apple.scale.setScalar(individualScale);
-      
-      apple.userData = { 
-        type: 'fruit', 
+      this.fruitData[i] = {
         path: fruitData.path,
-        social: socialConfig ? socialConfig.name : null
+        social: socialConfig ? socialConfig.name : null,
+        matrix: matrix.clone()
       };
-      apple.castShadow = true;
-      
-      // Halo
-      const haloMat = this.haloMatTemplate.clone();
-      const halo = new THREE.Mesh(this.haloGeo, haloMat);
-      halo.name = 'halo';
-      apple.add(halo);
-
-      this.group.add(apple);
     });
+
+    this.fruitInstancedMesh.instanceMatrix.needsUpdate = true;
+    this.haloInstancedMesh.instanceMatrix.needsUpdate = true;
+    
+    this.group.add(this.fruitInstancedMesh);
+    this.group.add(this.haloInstancedMesh);
   }
 
   updateWind(time) {
@@ -428,8 +454,15 @@ export class Tree {
     }
 
     const branchCurve = new THREE.CubicBezierCurve3(startPos, cp1, cp2, endPos);
+    
+    // Geometry Simplification
     let segments = currentDepth === 0 ? 40 : currentDepth === 1 ? 20 : currentDepth === 2 ? 8 : currentDepth === 3 ? 4 : 2;
     let radialSegments = currentDepth === 0 ? 16 : currentDepth === 1 ? 10 : currentDepth === 2 ? 6 : currentDepth === 3 ? 4 : 3;
+
+    if (this.isMobile) {
+      segments = Math.max(1, Math.floor(segments * 0.7));
+      radialSegments = currentDepth === 0 ? 10 : currentDepth === 1 ? 8 : currentDepth === 2 ? 5 : 3;
+    }
 
     const targetEndRadius = currentDepth === 0 ? radius * 0.45 : radius * 0.55;
 

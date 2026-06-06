@@ -9,6 +9,7 @@ class App {
   constructor() {
     this.targetGrowth = 0.0;
     this.currentGrowth = 0.0;
+    this.lastRebuildGrowth = 0.0;
     this.pendingGrowth = null;
     this.growthStep = 0.005;
     this.lastFpsUpdate = 0;
@@ -173,29 +174,24 @@ class App {
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
     const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
     
-    let fruitObject = null;
+    let fruitData = null;
     for (const intersect of intersects) {
-      let obj = intersect.object;
-      while (obj && obj !== this.tree.group) {
-        if (obj.userData && obj.userData.type === 'fruit') {
-          fruitObject = obj;
-          break;
-        }
-        obj = obj.parent;
+      if (intersect.object === this.tree.fruitInstancedMesh && intersect.instanceId !== undefined) {
+        fruitData = this.tree.fruitData[intersect.instanceId];
+        break;
       }
-      if (fruitObject) break;
     }
 
-    if (fruitObject) {
+    if (fruitData) {
       this.panningToApple = true;
       this.userInteracted = true; 
       
-      this.panTargetLookAt.copy(new THREE.Vector3().setFromMatrixPosition(fruitObject.matrixWorld));
+      this.panTargetLookAt.copy(new THREE.Vector3().setFromMatrixPosition(fruitData.matrix));
       const dir = new THREE.Vector3().subVectors(this.sceneManager.camera.position, this.panTargetLookAt).normalize();
       this.panTargetPos.copy(this.panTargetLookAt).addScaledVector(dir, 6);
 
       // Queue Social UI (don't show yet)
-      const social = fruitObject.userData.social;
+      const social = fruitData.social;
       if (social && this.socialData[social]) {
         this.pendingSocialType = social;
       } else {
@@ -328,36 +324,28 @@ class App {
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
       const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
       
-      let hoveredFruit = null;
+      let hoveredFruitData = null;
+      let hoveredInstanceId = -1;
+
       for (const intersect of intersects) {
-        let obj = intersect.object;
-        while (obj && obj !== this.tree.group) {
-          if (obj.userData && obj.userData.type === 'fruit') {
-            hoveredFruit = obj;
-            break;
-          }
-          obj = obj.parent;
+        if (intersect.object === this.tree.fruitInstancedMesh && intersect.instanceId !== undefined) {
+          hoveredInstanceId = intersect.instanceId;
+          hoveredFruitData = this.tree.fruitData[hoveredInstanceId];
+          break;
         }
-        if (hoveredFruit) break;
       }
 
       const tooltipEl = document.getElementById('apple-tooltip');
 
-      if (hoveredFruit) {
-        const currentPath = hoveredFruit.userData.path;
+      if (hoveredFruitData) {
+        const currentPath = hoveredFruitData.path;
         
         // If we switched apples
         if (this.hoveredPath !== currentPath) {
-          // Reset PREVIOUS halo immediately
-          if (this.activeHalo) {
-            this.activeHalo.material.uniforms.opacity.value = 0;
-            this.activeHalo = null;
-          }
-
           this.hoveredPath = currentPath;
           
           if (tooltipEl) {
-            const social = hoveredFruit.userData.social;
+            const social = hoveredFruitData.social;
             tooltipEl.textContent = social || 'Apple';
             tooltipEl.style.backgroundColor = social === 'LinkedIn' ? '#0077b5' : 
                                             social === 'GitHub' ? '#111111' : 
@@ -366,25 +354,29 @@ class App {
           }
         }
 
-        // Continually sync visual effects for the NEW mesh in this frame
-        const halo = hoveredFruit.getObjectByName('halo');
-        if (halo) {
-          halo.material.uniforms.opacity.value = 0.6;
-          this.activeHalo = halo; // Keep reference to reset it later
+        // Update halo shader uniforms
+        if (this.tree.haloInstancedMesh) {
+          this.tree.haloInstancedMesh.material.uniforms.opacity.value = 0.6;
+          this.tree.haloInstancedMesh.material.uniforms.activeInstance.value = hoveredInstanceId;
         }
         
         if (tooltipEl) {
-          const pos = this._toScreenPosition(hoveredFruit);
-          tooltipEl.style.left = `${pos.x}px`;
-          tooltipEl.style.top = `${pos.y - 40}px`; 
+          const vector = new THREE.Vector3().setFromMatrixPosition(hoveredFruitData.matrix);
+          const canvas = this.sceneManager.renderer.domElement;
+          vector.project(this.sceneManager.camera);
+          const x = (vector.x * 0.5 + 0.5) * canvas.clientWidth;
+          const y = (vector.y * -0.5 + 0.5) * canvas.clientHeight;
+          
+          tooltipEl.style.left = `${x}px`;
+          tooltipEl.style.top = `${y - 40}px`; 
         }
 
         document.body.style.cursor = 'pointer';
       } else {
         // MOUSE LEFT: Reset everything
-        if (this.activeHalo) {
-          this.activeHalo.material.uniforms.opacity.value = 0;
-          this.activeHalo = null;
+        if (this.tree.haloInstancedMesh) {
+          this.tree.haloInstancedMesh.material.uniforms.opacity.value = 0;
+          this.tree.haloInstancedMesh.material.uniforms.activeInstance.value = -1;
         }
         this.hoveredPath = null;
         if (tooltipEl) tooltipEl.classList.remove('visible');
@@ -411,10 +403,18 @@ class App {
         }
       }
       
-      const duration = this.tree.rebuild(this.currentGrowth);
-      if (rebuildValEl) {
-        const appleCount = this.tree.fruitTransforms ? this.tree.fruitTransforms.length : 0;
-        rebuildValEl.innerText = `${duration.toFixed(2)}ms | Apples: ${appleCount}`;
+      // Throttle rebuilds: only rebuild if growth change > 0.01 or if we reached target
+      const growthChange = Math.abs(this.currentGrowth - this.lastRebuildGrowth);
+      const isAtTarget = this.currentGrowth === this.targetGrowth;
+
+      if (growthChange > 0.01 || isAtTarget) {
+        const duration = this.tree.rebuild(this.currentGrowth);
+        this.lastRebuildGrowth = this.currentGrowth;
+        
+        if (rebuildValEl) {
+          const appleCount = this.tree.fruitData ? this.tree.fruitData.length : 0;
+          rebuildValEl.innerText = `${duration.toFixed(2)}ms | Apples: ${appleCount}`;
+        }
       }
     }
 
