@@ -260,7 +260,7 @@ export class Tree {
     );
 
     const calculatedInternalGrowth = growthValue * 0.62;
-    const baseTrunkStart = new THREE.Vector3(0, -7, 0);
+    const baseTrunkStart = new THREE.Vector3(0, -7.5, 0);
     const baseTrunkDir = new THREE.Vector3(0, 1, 0).normalize();
     const baseTrunkMaxLen = 9.5;
     const currentTrunkLen =
@@ -685,7 +685,7 @@ export class Tree {
         const progress = k / segments;
         const leafPos = branchCurve.getPointAt(progress);
         const branchForward = branchCurve.getTangentAt(progress).normalize();
-        const heightFromBase = leafPos.y + 7.0;
+        const heightFromBase = leafPos.y + 7.5;
         let hScale =
           heightFromBase > 4.0 && heightFromBase < 18.0
             ? Math.sin(((heightFromBase - 4.0) / 14.0) * Math.PI)

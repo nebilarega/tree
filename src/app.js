@@ -66,7 +66,7 @@ class App {
     this.dirtSystem = new DirtSystem(this.sceneManager.scene);
     this.wateringCan = new WateringCanSystem(
       this.sceneManager.scene,
-      (r, x, z) => Math.max(-7.01, this.dirtSystem.calculateSurfaceHeight(r, x, z) - 7.10)
+      (r, x, z) => Math.max(-7.51, this.dirtSystem.calculateSurfaceHeight(r, x, z) - 7.60)
     );
 
     this.sections = document.querySelectorAll('section');
@@ -336,7 +336,7 @@ class App {
       this.framesCount = 0;
     }
 
-    const peakHeight = -7.10 + this.dirtSystem.config.moundHeight;
+    const peakHeight = -7.60 + this.dirtSystem.config.moundHeight;
     this.wateringCan.update(dt || 0, peakHeight);
 
     // Stable Apple Hover Logic (survives rebuilds)
