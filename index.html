@@ -29,6 +29,11 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="alternate icon" type="image/png" href="/favicon.png" />
 
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
@@ -59,13 +64,25 @@
       </div>
     </div>
 
+    <!-- Beautiful ambient background blobs -->
+    <div class="bg-blob purple-blob"></div>
+    <div class="bg-blob yellow-blob"></div>
+    <div class="tree-bg-aura"></div>
+
     <nav id="main-nav">
       <div class="nav-logo">
         <a href="#" id="home-link">SEED TO CANOPY</a>
       </div>
+      <div class="nav-middle-links">
+        <a href="#hero">Evolution</a>
+        <a href="#junior">Foundations</a>
+        <a href="#senior">Branching</a>
+        <a href="#lead">Leadership</a>
+        <a href="#architect">Canopy</a>
+      </div>
       <div class="nav-links">
-        <a href="https://linkedin.com" target="_blank" rel="noopener">LINKEDIN</a>
-        <a href="https://github.com" target="_blank" rel="noopener">GITHUB</a>
+        <a href="https://linkedin.com" target="_blank" rel="noopener" class="nav-link-secondary">LinkedIn</a>
+        <a href="https://github.com" target="_blank" rel="noopener" class="btn-get-started">Get started</a>
       </div>
     </nav>
 
@@ -78,6 +95,15 @@
 
     <div id="apple-tooltip"></div>
 
+    <!-- Floating System Card (Visible at final growth) -->
+    <div id="living-system-card" class="living-system-card">
+      <div class="card-icon-circle">🌱</div>
+      <div class="card-text-container">
+        <h4>Your career is a living system.</h4>
+        <p>We help it grow.</p>
+      </div>
+    </div>
+
     <div id="social-box">
       <button class="close-btn">&times;</button>
       <h3 id="social-title">LinkedIn</h3>
@@ -88,36 +114,90 @@
     <main id="content">
       <section id="hero">
         <div class="section-content visible">
-          <h1><span>The Seed</span></h1>
-          <p>Every journey begins with a single line of code. Curious, small, and full of latent potential.</p>
+          <div class="section-badge">CAREER INTELLIGENCE THAT GROWS WITH YOU</div>
+          <h1>Your career<br>is <span class="highlight">growing.</span></h1>
+          <p>Seed to Canopy turns the work you do every day into a living picture of your skills, strengths, experience, and where you could go next.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" onclick="window.dispatchEvent(new WheelEvent('wheel', {deltaY: 100}))">Start growing <span class="arrow">→</span></button>
+            <button class="btn btn-secondary"><span class="play-icon">▶</span> See how it works</button>
+          </div>
+          <div class="hero-footer-badges">
+            <span><span class="check-icon">✓</span> Private by default</span>
+            <span class="dot-separator">•</span>
+            <span><span class="lock-icon">🔒</span> No credit card</span>
+          </div>
         </div>
       </section>
 
       <section id="junior">
         <div class="section-content">
-          <h2><span>Sprouting Foundations</span></h2>
-          <p>Junior Developer. Learning to reach for the light. Building structures that hold weight and finding the rhythm of growth.</p>
+          <div class="section-badge">STAGE 01 — THE ROOT SYSTEM</div>
+          <h2>Sprouting<br>Foundations.</h2>
+          <p>Junior Developer. Learning to reach for the light. Building structures that hold weight, mastering code quality, and finding the natural rhythm of professional growth.</p>
+          <div class="skill-cards-row">
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-blue">⌨</span>
+              <span>Clean Code</span>
+            </div>
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-green">⚙</span>
+              <span>Algorithms</span>
+            </div>
+          </div>
         </div>
       </section>
 
       <section id="senior">
         <div class="section-content">
-          <h2><span>Branching Out</span></h2>
-          <p>Senior Engineer. Complexity increases. Deep roots in problem-solving, reaching wider and supporting the ecosystem.</p>
+          <div class="section-badge">STAGE 02 — BRANCHING EXPERTISE</div>
+          <h2>Branching<br>Out.</h2>
+          <p>Senior Engineer. Complexity increases. Deep roots in problem-solving, reaching wider across frameworks and paradigms, and supporting the team's software engineering ecosystem.</p>
+          <div class="skill-cards-row">
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-purple">❖</span>
+              <span>System Design</span>
+            </div>
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-yellow">⚡</span>
+              <span>Performance</span>
+            </div>
+          </div>
         </div>
       </section>
 
       <section id="lead">
         <div class="section-content">
-          <h2><span>Cultivating Excellence</span></h2>
-          <p>Lead Engineer. Mentoring others to grow. Shaping the garden, ensuring health across multiple systems, and refining the art of engineering.</p>
+          <div class="section-badge">STAGE 03 — ORCHESTRATION</div>
+          <h2>Cultivating<br>Excellence.</h2>
+          <p>Lead Engineer. Mentoring others to thrive. Shaping the garden of development, ensuring health across multiple systems, and refining the art of high-impact engineering.</p>
+          <div class="skill-cards-row">
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-blue">👥</span>
+              <span>Mentorship</span>
+            </div>
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-green">🎯</span>
+              <span>Leadership</span>
+            </div>
+          </div>
         </div>
       </section>
 
       <section id="architect">
         <div class="section-content">
-          <h2><span>Full Canopy</span></h2>
-          <p>Technical Architect. A mature system. Providing shade, stability, and a vision that spans the entire horizon.</p>
+          <div class="section-badge">STAGE 04 — MATURED ECOSYSTEM</div>
+          <h2>Full<br>Canopy.</h2>
+          <p>Technical Architect. A mature system. Providing shade, architectural stability, and a future-proof vision that spans the entire organizational horizon.</p>
+          <div class="skill-cards-row">
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-purple">☁</span>
+              <span>Cloud & Scale</span>
+            </div>
+            <div class="skill-mini-card">
+              <span class="mini-icon icon-yellow">🛡</span>
+              <span>Governance</span>
+            </div>
+          </div>
         </div>
       </section>
     </main>

@@ -2,11 +2,11 @@ import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
 
 const leafPalettes = [
-  new THREE.Color("#245c32"),
-  new THREE.Color("#3b8c4c"),
-  new THREE.Color("#5ea351"),
-  new THREE.Color("#4a7c59"),
-  new THREE.Color("#a89744"),
+  new THREE.Color("#4a8505"), // Vibrant fresh green
+  new THREE.Color("#70a904"), // Lighter warm green
+  new THREE.Color("#387002"), // Dark leaf green
+  new THREE.Color("#9ac20a"), // Lime green accent
+  new THREE.Color("#55823b"), // Organic forest green
 ];
 
 export class Tree {
@@ -248,9 +248,9 @@ export class Tree {
     const barkProgress = THREE.MathUtils.smoothstep(growthValue, 0.15, 0.55);
     this.trunkMaterial.color.lerpColors(
       this._youngStemColor ||
-        (this._youngStemColor = new THREE.Color("#7fae4a")),
+        (this._youngStemColor = new THREE.Color("#65913f")),
       this._matureBarkColor ||
-        (this._matureBarkColor = new THREE.Color("#ffffff")),
+        (this._matureBarkColor = new THREE.Color("#827161")), // Beautiful warm gray-brown bark
       barkProgress,
     );
     this.trunkMaterial.bumpScale = THREE.MathUtils.lerp(

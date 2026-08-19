@@ -144,18 +144,19 @@ export class WateringCanSystem {
     canvas.height = 16;
     const ctx = canvas.getContext("2d");
     const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
-    grad.addColorStop(0, "rgba(145,230,255,0.9)"); // Restored blue
-    grad.addColorStop(1, "rgba(145,230,255,0)");
+    grad.addColorStop(0, "rgba(37, 99, 235, 0.95)"); // Rich blue center
+    grad.addColorStop(0.3, "rgba(59, 130, 246, 0.7)"); // Soft blue transition
+    grad.addColorStop(1, "rgba(59, 130, 246, 0)");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 16, 16);
     const mistTexture = new THREE.CanvasTexture(canvas);
 
     this.mistMaterial = new THREE.PointsMaterial({
-      size: 0.08, // Increased from 0.045
+      size: 0.14, // Increased size for visibility
       map: mistTexture,
       transparent: true,
-      opacity: 0.9, // Increased from 0.65
-      blending: THREE.NormalBlending, // Changed from Additive to be more visible on light backgrounds
+      opacity: 0.95,
+      blending: THREE.NormalBlending, // NormalBlending is much more visible on light backgrounds
       depthWrite: false,
     });
 

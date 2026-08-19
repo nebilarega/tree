@@ -14,10 +14,17 @@ export class DirtSystem {
     };
 
     this.dirtMaterial = new THREE.MeshStandardMaterial({
-      color: 0x5d4037,
-      roughness: 0.7,
+      color: 0x8d7a6b, // Soil/rock brown
+      roughness: 0.8,
       flatShading: true,
       envMapIntensity: 1.2,
+    });
+
+    this.moundMaterial = new THREE.MeshStandardMaterial({
+      color: 0x6e8a4e, // Lush grass/moss green matching the ChatGPT inspiration image
+      roughness: 0.9,
+      flatShading: false,
+      envMapIntensity: 1.0,
     });
 
     this.particles = [];
@@ -62,7 +69,7 @@ export class DirtSystem {
     }
     geo.computeVertexNormals();
 
-    this.mound = new THREE.Mesh(geo, this.dirtMaterial);
+    this.mound = new THREE.Mesh(geo, this.moundMaterial);
     this.mound.position.y = -7.10;
     this.mound.castShadow = true;
     this.mound.receiveShadow = true;

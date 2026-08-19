@@ -293,6 +293,16 @@ class App {
       }
     });
 
+    // Toggle living system card visibility
+    const systemCard = document.getElementById('living-system-card');
+    if (systemCard) {
+      if (this.currentSectionIndex === this.sections.length - 1) {
+        systemCard.classList.add('visible');
+      } else {
+        systemCard.classList.remove('visible');
+      }
+    }
+
     // Update scroll hint text
     const hint = document.getElementById('scroll-hint');
     if (hint) {
