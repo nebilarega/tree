@@ -15,6 +15,15 @@
   box-sizing: border-box;
 }
 
+html, body {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
 body {
   background: linear-gradient(135deg, #f4f0fa 0%, #faf9fc 50%, #f7fbf0 100%);
   color: var(--text-color);
@@ -476,7 +485,7 @@ section:nth-child(even) .section-content {
   right: 6vw;
   transform: translateY(-50%) translateX(40px);
   width: 350px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.92); /* Higher opacity for better legibility against 3D scene */
   backdrop-filter: blur(30px) saturate(180%);
   -webkit-backdrop-filter: blur(30px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.6);
@@ -490,6 +499,7 @@ section:nth-child(even) .section-content {
   box-shadow: 0 30px 60px rgba(30, 21, 51, 0.12);
   display: flex;
   flex-direction: column;
+  overflow: hidden; /* Fixes top bar clipping/weird corners */
 }
 
 #social-box::before {
@@ -536,13 +546,13 @@ section:nth-child(even) .section-content {
   font-family: var(--font-display);
   font-size: 1.6rem;
   margin-bottom: 1rem;
-  color: #0f172a;
+  color: #090d16; /* Extremely dark for legibility */
 }
 
 #social-box p {
   font-size: 0.95rem;
   line-height: 1.6;
-  color: #475569;
+  color: #1e293b; /* Dark slate for high contrast */
   margin-bottom: 2rem;
 }
 

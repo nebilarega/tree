@@ -38,19 +38,34 @@ class App {
     this.isSocialBoxOpen = false;
     this.pendingSocialType = null; // New: queue the box appearance
     this.socialData = {
-      'LinkedIn': {
-        title: 'LinkedIn',
-        desc: "Connect with me for professional networking, technical discussions, and career opportunities in software engineering.",
-        url: 'https://linkedin.com'
+      'Depth-First Inquiry': {
+        title: 'Depth-First Inquiry',
+        desc: "Instead of generic advice, Thriven drills deep into single conversational threads to extract meaningful breakthrough insights.",
+        url: '#'
       },
-      'GitHub': {
-        title: 'GitHub',
-        desc: "Explore my open-source projects, experiments in creative coding, and professional portfolio repositories.",
-        url: 'https://github.com'
+      'Behavioral Protocols': {
+        title: 'Behavioral Protocols',
+        desc: "Specialized, self-activating career guardrails tailored for critical phases like Burnout, Job Loss, and Workplace Conflict.",
+        url: '#'
       },
-      'Portfolio': {
-        title: 'Creative Works',
-        desc: "A deeper dive into my creative process, design philosophies, and architectural case studies.",
+      'Personal Hypotheses': {
+        title: 'Personal Hypotheses',
+        desc: "Formulates personalized growth theories about your career progression, challenging boundaries and testing limits.",
+        url: '#'
+      },
+      'Reframing Engine': {
+        title: 'Reframing Engine',
+        desc: "Transforms self-doubt, career anxiety, and promotion stagnation into actionable, empowering professional blueprints.",
+        url: '#'
+      },
+      'Evidence-First Proof': {
+        title: 'Evidence-First Proof',
+        desc: "Replaces vague skills with verified metrics. No capability is logged without concrete professional evidence to back it up.",
+        url: '#'
+      },
+      'Dual-Mode Sync': {
+        title: 'Dual-Mode Sync',
+        desc: "Toggle seamlessly between active reflective coaching sessions and silent, passive daily micro-logging.",
         url: '#'
       }
     };
@@ -364,14 +379,20 @@ class App {
         if (this.hoveredPath !== currentPath) {
           this.hoveredPath = currentPath;
           
-          if (tooltipEl) {
-            const social = hoveredFruitData.social;
-            tooltipEl.textContent = social || 'Apple';
-            tooltipEl.style.backgroundColor = social === 'LinkedIn' ? '#0077b5' : 
-                                            social === 'GitHub' ? '#111111' : 
-                                            social === 'Portfolio' ? '#ff6666' : '#333333';
-            tooltipEl.classList.add('visible');
-          }
+            if (tooltipEl) {
+              const social = hoveredFruitData.social;
+              tooltipEl.textContent = social || 'Apple';
+              const colors = {
+                'Depth-First Inquiry': '#6366f1',
+                'Behavioral Protocols': '#db2777',
+                'Personal Hypotheses': '#0d9488',
+                'Reframing Engine': '#ca8a04',
+                'Evidence-First Proof': '#2563eb',
+                'Dual-Mode Sync': '#ea580c'
+              };
+              tooltipEl.style.backgroundColor = colors[social] || '#333333';
+              tooltipEl.classList.add('visible');
+            }
         }
 
         // Update halo shader uniforms
