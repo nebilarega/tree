@@ -319,11 +319,18 @@ p {
   font-weight: 600;
 }
 
-/* Skill Cards Row */
+/* Skill pills */
 .skill-cards-row {
   display: flex;
   gap: 1rem;
   margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Right-aligned sections only: horizontal row, flush right */
+section:nth-child(even) .skill-cards-row {
+  justify-content: flex-end;
+  width: 100%;
 }
 
 .skill-mini-card {
@@ -350,12 +357,19 @@ p {
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
 .icon-blue { background: #e0f2fe; color: #0284c7; }
 .icon-green { background: #dcfce7; color: #16a34a; }
 .icon-purple { background: #f3e8ff; color: #9333ea; }
 .icon-yellow { background: #fef9c3; color: #ca8a04; }
+
+@media (max-width: 768px) {
+  section:nth-child(even) .skill-cards-row {
+    justify-content: flex-start;
+  }
+}
 
 /* Custom Layout Tweaks for scroll snaps */
 section:nth-child(even) .section-content {
