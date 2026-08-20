@@ -569,34 +569,34 @@ export class Tree {
     // Geometry Simplification
     let segments =
       currentDepth === 0
-        ? 40
+        ? 20
         : currentDepth === 1
-          ? 20
-          : currentDepth === 2
-            ? 8
-            : currentDepth === 3
-              ? 4
-              : 2;
-    let radialSegments =
-      currentDepth === 0
-        ? 16
-        : currentDepth === 1
-          ? 10
+          ? 12
           : currentDepth === 2
             ? 6
             : currentDepth === 3
-              ? 4
+              ? 3
+              : 2;
+    let radialSegments =
+      currentDepth === 0
+        ? 10
+        : currentDepth === 1
+          ? 8
+          : currentDepth === 2
+            ? 5
+            : currentDepth === 3
+              ? 3
               : 3;
 
     if (this.isMobile) {
       segments = Math.max(1, Math.floor(segments * 0.7));
       radialSegments =
         currentDepth === 0
-          ? 10
+          ? 8
           : currentDepth === 1
-            ? 8
+            ? 6
             : currentDepth === 2
-              ? 5
+              ? 4
               : 3;
     }
 

@@ -444,17 +444,29 @@ class App {
         }
       }
       
-      // Throttle rebuilds: only rebuild if growth change > 0.01 or if we reached target
+      // Throttle rebuilds: dynamically adjusted based on previous rebuild durations to protect FPS
+      if (this.rebuildThrottle === undefined) {
+        this.rebuildThrottle = 0.012;
+      }
       const growthChange = Math.abs(this.currentGrowth - this.lastRebuildGrowth);
       const isAtTarget = this.currentGrowth === this.targetGrowth;
 
-      if (growthChange > 0.01 || isAtTarget) {
+      if (growthChange > this.rebuildThrottle || isAtTarget) {
         const duration = this.tree.rebuild(this.currentGrowth);
         this.lastRebuildGrowth = this.currentGrowth;
         
+        // Dynamically adjust throttle based on CPU/rendering performance
+        if (duration > 16.0) {
+          // Slow CPU: increase throttle up to 0.03 (less rebuild frequency to avoid stutter)
+          this.rebuildThrottle = Math.min(this.rebuildThrottle + 0.005, 0.03);
+        } else if (duration < 8.0) {
+          // Fast CPU: decrease throttle down to 0.01 for buttery smooth animation
+          this.rebuildThrottle = Math.max(this.rebuildThrottle - 0.002, 0.01);
+        }
+        
         if (rebuildValEl) {
           const appleCount = this.tree.fruitData ? this.tree.fruitData.length : 0;
-          rebuildValEl.innerText = `${duration.toFixed(2)}ms | Apples: ${appleCount}`;
+          rebuildValEl.innerText = `${duration.toFixed(2)}ms (Throttle: ${this.rebuildThrottle.toFixed(3)}) | Apples: ${appleCount}`;
         }
       }
     }

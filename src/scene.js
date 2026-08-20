@@ -16,10 +16,11 @@ export class SceneManager {
     );
     this.camera.position.set(-2, -4, 8);
 
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.isMobile ? 1.5 : 2));
+    this.renderer.shadowMap.enabled = !this.isMobile;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.15;
@@ -35,20 +36,21 @@ export class SceneManager {
   }
 
   initLights() {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth < 768;
-    const shadowRes = isMobile ? 1024 : 2048;
+    const shadowRes = this.isMobile ? 1024 : 2048;
 
     // Main Key Light (Warm, Golden Sun)
     this.sunLight = new THREE.DirectionalLight("#fff2d5", 3.8);
     this.sunLight.position.set(15, 25, 12);
-    this.sunLight.castShadow = true;
-    this.sunLight.shadow.mapSize.width = shadowRes;
-    this.sunLight.shadow.mapSize.height = shadowRes;
-    this.sunLight.shadow.camera.left = -30;
-    this.sunLight.shadow.camera.right = 30;
-    this.sunLight.shadow.camera.top = 30;
-    this.sunLight.shadow.camera.bottom = -30;
-    this.sunLight.shadow.bias = -0.0005;
+    if (!this.isMobile) {
+      this.sunLight.castShadow = true;
+      this.sunLight.shadow.mapSize.width = shadowRes;
+      this.sunLight.shadow.mapSize.height = shadowRes;
+      this.sunLight.shadow.camera.left = -30;
+      this.sunLight.shadow.camera.right = 30;
+      this.sunLight.shadow.camera.top = 30;
+      this.sunLight.shadow.camera.bottom = -30;
+      this.sunLight.shadow.bias = -0.0005;
+    }
     this.scene.add(this.sunLight);
 
     // Hemisphere Light (Sky: Soft Lilac, Ground: Light Sage Green)
