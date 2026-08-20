@@ -1,10 +1,20 @@
-import { SceneManager } from './scene.js';
-import { Tree } from './tree.js';
-import { DirtSystem } from './dirt.js';
-import { WateringCanSystem } from './watering.js';
-import { CloudSystem } from './cloudSystem.js';
-import { fpsValEl, rebuildValEl } from './ui.js';
-import * as THREE from 'three';
+import { SceneManager } from "./scene.js";
+import { Tree } from "./tree.js";
+import { DirtSystem } from "./dirt.js";
+import { WateringCanSystem } from "./watering.js";
+import { CloudSystem } from "./cloudSystem.js";
+import { mountIcons } from "./icons.js";
+import { fpsValEl, rebuildValEl } from "./ui.js";
+import * as THREE from "three";
+
+const APPLE_COLORS = {
+  "Depth-First Inquiry": "#6366f1",
+  "Behavioral Protocols": "#db2777",
+  "Personal Hypotheses": "#0d9488",
+  "Reframing Engine": "#ca8a04",
+  "Evidence-First Proof": "#2563eb",
+  "Dual-Mode Sync": "#ea580c",
+};
 
 class App {
   constructor() {
@@ -16,7 +26,7 @@ class App {
     this.lastFpsUpdate = 0;
     this.framesCount = 0;
     this.lastTimestamp = 0;
-    
+
     // Transition State
     this.isTransitioning = false;
     this.currentSectionIndex = 0;
@@ -39,36 +49,36 @@ class App {
     this.isSocialBoxOpen = false;
     this.pendingSocialType = null; // New: queue the box appearance
     this.socialData = {
-      'Depth-First Inquiry': {
-        title: 'Depth-First Inquiry',
+      "Depth-First Inquiry": {
+        title: "Depth-First Inquiry",
         desc: "Instead of generic advice, Thriven drills deep into single conversational threads to extract meaningful breakthrough insights.",
-        url: '#'
+        url: "#",
       },
-      'Behavioral Protocols': {
-        title: 'Behavioral Protocols',
+      "Behavioral Protocols": {
+        title: "Behavioral Protocols",
         desc: "Specialized, self-activating career guardrails tailored for critical phases like Burnout, Job Loss, and Workplace Conflict.",
-        url: '#'
+        url: "#",
       },
-      'Personal Hypotheses': {
-        title: 'Personal Hypotheses',
+      "Personal Hypotheses": {
+        title: "Personal Hypotheses",
         desc: "Formulates personalized growth theories about your career progression, challenging boundaries and testing limits.",
-        url: '#'
+        url: "#",
       },
-      'Reframing Engine': {
-        title: 'Reframing Engine',
+      "Reframing Engine": {
+        title: "Reframing Engine",
         desc: "Transforms self-doubt, career anxiety, and promotion stagnation into actionable, empowering professional blueprints.",
-        url: '#'
+        url: "#",
       },
-      'Evidence-First Proof': {
-        title: 'Evidence-First Proof',
+      "Evidence-First Proof": {
+        title: "Evidence-First Proof",
         desc: "Replaces vague skills with verified metrics. No capability is logged without concrete professional evidence to back it up.",
-        url: '#'
+        url: "#",
       },
-      'Dual-Mode Sync': {
-        title: 'Dual-Mode Sync',
+      "Dual-Mode Sync": {
+        title: "Dual-Mode Sync",
         desc: "Toggle seamlessly between active reflective coaching sessions and silent, passive daily micro-logging.",
-        url: '#'
-      }
+        url: "#",
+      },
     };
 
     // Custom Smooth Scroll State
@@ -83,18 +93,19 @@ class App {
     this.dirtSystem = new DirtSystem(this.sceneManager.scene);
     this.wateringCan = new WateringCanSystem(
       this.sceneManager.scene,
-      (r, x, z) => Math.max(-7.51, this.dirtSystem.calculateSurfaceHeight(r, x, z) - 7.60)
+      (r, x, z) =>
+        Math.max(-7.51, this.dirtSystem.calculateSurfaceHeight(r, x, z) - 7.6),
     );
 
-    this.sections = document.querySelectorAll('section');
-    this.sectionContents = document.querySelectorAll('.section-content');
+    this.sections = document.querySelectorAll("section");
+    this.sectionContents = document.querySelectorAll(".section-content");
 
     this.initialize();
   }
 
   initialize() {
-    if ('scrollRestoration' in history) {
-      history.scrollRestoration = 'manual';
+    if ("scrollRestoration" in history) {
+      history.scrollRestoration = "manual";
     }
 
     window.scrollTo(0, 0);
@@ -104,35 +115,45 @@ class App {
 
     this.sceneManager.controls.enabled = false;
 
+    mountIcons();
+
     this.sceneManager.onResize();
     this.tree.rebuild(0);
-    
-    window.addEventListener('resize', () => {
+
+    window.addEventListener("resize", () => {
       this.sceneManager.onResize();
       if (this.cloudSystem) {
         this.cloudSystem.onResize(this.sceneManager.renderer);
       }
     });
-    window.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
-    window.addEventListener('keydown', (e) => this.handleKey(e));
-    window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
-    window.addEventListener('pointermove', (e) => this.handlePointerMove(e));
-    window.addEventListener('click', (e) => this.handleClick(e));
+    window.addEventListener("wheel", (e) => this.handleWheel(e), {
+      passive: false,
+    });
+    window.addEventListener("keydown", (e) => this.handleKey(e));
+    window.addEventListener("mousemove", (e) => this.handleMouseMove(e));
+    window.addEventListener("pointermove", (e) => this.handlePointerMove(e));
+    window.addEventListener("click", (e) => this.handleClick(e));
 
     // Mobile Touch Events
-    window.addEventListener('touchstart', (e) => this.handleTouchStart(e), { passive: false });
-    window.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-    window.addEventListener('touchend', (e) => this.handleTouchEnd(e), { passive: false });
+    window.addEventListener("touchstart", (e) => this.handleTouchStart(e), {
+      passive: false,
+    });
+    window.addEventListener("touchmove", (e) => e.preventDefault(), {
+      passive: false,
+    });
+    window.addEventListener("touchend", (e) => this.handleTouchEnd(e), {
+      passive: false,
+    });
 
     // Social Box Close Button
-    const closeBtn = document.querySelector('#social-box .close-btn');
+    const closeBtn = document.querySelector("#social-box .close-btn");
     if (closeBtn) {
-      closeBtn.addEventListener('click', () => this.closeSocialBox());
+      closeBtn.addEventListener("click", () => this.closeSocialBox());
     }
 
-    const homeLink = document.getElementById('home-link');
+    const homeLink = document.getElementById("home-link");
     if (homeLink) {
-      homeLink.addEventListener('click', (e) => {
+      homeLink.addEventListener("click", (e) => {
         e.preventDefault();
         this.panningToApple = false;
         this.userInteracted = false;
@@ -171,13 +192,13 @@ class App {
   }
 
   hideLoader() {
-    const loader = document.getElementById('loader');
-    if (loader && !loader.classList.contains('fade-out')) {
-      loader.classList.add('fade-out');
+    const loader = document.getElementById("loader");
+    if (loader && !loader.classList.contains("fade-out")) {
+      loader.classList.add("fade-out");
       // Lock scroll briefly to allow entry animation
-      document.body.classList.add('locked');
+      document.body.classList.add("locked");
       setTimeout(() => {
-        document.body.classList.remove('locked');
+        document.body.classList.remove("locked");
         this.goToSection(0); // Trigger hero reveal
       }, 1000);
     }
@@ -190,7 +211,11 @@ class App {
 
   handlePointerMove(e) {
     if (this.cloudSystem) {
-      this.cloudSystem.setPointer(e.clientX, e.clientY, this.sceneManager.renderer.domElement);
+      this.cloudSystem.setPointer(
+        e.clientX,
+        e.clientY,
+        this.sceneManager.renderer.domElement,
+      );
     }
   }
 
@@ -215,13 +240,19 @@ class App {
 
   handleClick(e) {
     if (this.currentGrowth < 0.9 || this.isTransitioning) return;
-    
+
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-    const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
-    
+    const intersects = this.raycaster.intersectObjects(
+      this.tree.group.children,
+      true,
+    );
+
     let fruitData = null;
     for (const intersect of intersects) {
-      if (intersect.object === this.tree.fruitInstancedMesh && intersect.instanceId !== undefined) {
+      if (
+        intersect.object === this.tree.fruitInstancedMesh &&
+        intersect.instanceId !== undefined
+      ) {
         fruitData = this.tree.fruitData[intersect.instanceId];
         break;
       }
@@ -229,10 +260,14 @@ class App {
 
     if (fruitData) {
       this.panningToApple = true;
-      this.userInteracted = true; 
-      
-      this.panTargetLookAt.copy(new THREE.Vector3().setFromMatrixPosition(fruitData.matrix));
-      const dir = new THREE.Vector3().subVectors(this.sceneManager.camera.position, this.panTargetLookAt).normalize();
+      this.userInteracted = true;
+
+      this.panTargetLookAt.copy(
+        new THREE.Vector3().setFromMatrixPosition(fruitData.matrix),
+      );
+      const dir = new THREE.Vector3()
+        .subVectors(this.sceneManager.camera.position, this.panTargetLookAt)
+        .normalize();
       this.panTargetPos.copy(this.panTargetLookAt).addScaledVector(dir, 6);
 
       // Queue Social UI (don't show yet)
@@ -240,7 +275,7 @@ class App {
       if (social && this.socialData[social]) {
         this.pendingSocialType = social;
       } else {
-        this.closeSocialBox(false); 
+        this.closeSocialBox(false);
       }
     } else {
       this.closeSocialBox();
@@ -249,26 +284,37 @@ class App {
 
   openSocialBox(type) {
     const data = this.socialData[type];
-    const box = document.getElementById('social-box');
-    const title = document.getElementById('social-title');
-    const desc = document.getElementById('social-desc');
-    const url = document.getElementById('social-url');
+    const box = document.getElementById("social-box");
+    const title = document.getElementById("social-title");
+    const desc = document.getElementById("social-desc");
+    const url = document.getElementById("social-url");
 
     if (box && data) {
       title.textContent = data.title;
       desc.textContent = data.desc;
       url.href = data.url;
       url.textContent = `VISIT ${data.title.toUpperCase()}`;
-      box.classList.add('visible');
+      this.applySocialTheme(type);
+      box.classList.add("visible");
       this.isSocialBoxOpen = true;
     }
   }
 
+  applySocialTheme(type) {
+    const box = document.getElementById("social-box");
+    if (!box) return;
+    const color = APPLE_COLORS[type] || "#7c3aed";
+    box.style.setProperty("--social-accent", color);
+  }
+
   closeSocialBox(resetCamera = true) {
-    const box = document.getElementById('social-box');
-    if (box) box.classList.remove('visible');
+    const box = document.getElementById("social-box");
+    if (box) {
+      box.classList.remove("visible");
+      box.style.removeProperty("--social-accent");
+    }
     this.isSocialBoxOpen = false;
-    
+
     if (resetCamera) {
       this.panningToApple = false;
       this.userInteracted = false;
@@ -291,16 +337,18 @@ class App {
     } else if (e.deltaY < 0 && this.currentSectionIndex > 0) {
       this.goToSection(this.currentSectionIndex - 1);
     }
-    
+
     e.preventDefault();
   }
 
   handleKey(e) {
     if (this.isTransitioning) return;
-    if (e.key === 'ArrowDown' || e.key === ' ') {
-      if (this.currentSectionIndex < this.sections.length - 1) this.goToSection(this.currentSectionIndex + 1);
-    } else if (e.key === 'ArrowUp') {
-      if (this.currentSectionIndex > 0) this.goToSection(this.currentSectionIndex - 1);
+    if (e.key === "ArrowDown" || e.key === " ") {
+      if (this.currentSectionIndex < this.sections.length - 1)
+        this.goToSection(this.currentSectionIndex + 1);
+    } else if (e.key === "ArrowUp") {
+      if (this.currentSectionIndex > 0)
+        this.goToSection(this.currentSectionIndex - 1);
     }
   }
 
@@ -322,29 +370,29 @@ class App {
   updateSectionVisibility() {
     this.sectionContents.forEach((content, index) => {
       if (index === this.currentSectionIndex) {
-        content.classList.add('visible');
+        content.classList.add("visible");
       } else {
-        content.classList.remove('visible');
+        content.classList.remove("visible");
       }
     });
 
     // Toggle living system card visibility
-    const systemCard = document.getElementById('living-system-card');
+    const systemCard = document.getElementById("living-system-card");
     if (systemCard) {
       if (this.currentSectionIndex === this.sections.length - 1) {
-        systemCard.classList.add('visible');
+        systemCard.classList.add("visible");
       } else {
-        systemCard.classList.remove('visible');
+        systemCard.classList.remove("visible");
       }
     }
 
     // Update scroll hint text
-    const hint = document.getElementById('scroll-hint');
+    const hint = document.getElementById("scroll-hint");
     if (hint) {
       if (this.currentSectionIndex === this.sections.length - 1) {
-        hint.textContent = 'Scroll to Return';
+        hint.textContent = "Scroll to Return";
       } else {
-        hint.textContent = 'Scroll to Nourish';
+        hint.textContent = "Scroll to Nourish";
       }
     }
   }
@@ -357,91 +405,96 @@ class App {
     this.lastTimestamp = timestamp;
 
     if (Math.abs(this.targetScrollY - this.currentScrollY) > 0.5) {
-      this.currentScrollY += (this.targetScrollY - this.currentScrollY) * this.scrollLerpFactor;
+      this.currentScrollY +=
+        (this.targetScrollY - this.currentScrollY) * this.scrollLerpFactor;
       window.scrollTo(0, this.currentScrollY);
       if (Math.abs(this.targetScrollY - this.currentScrollY) < 50) {
-         this.updateSectionVisibility();
+        this.updateSectionVisibility();
       }
     }
 
     if (timestamp > this.lastFpsUpdate + 500) {
-      const fps = Math.round((this.framesCount * 1000) / (timestamp - this.lastFpsUpdate));
+      const fps = Math.round(
+        (this.framesCount * 1000) / (timestamp - this.lastFpsUpdate),
+      );
       if (fpsValEl) fpsValEl.innerText = fps;
       this.lastFpsUpdate = timestamp;
       this.framesCount = 0;
     }
 
-    const peakHeight = -7.60 + this.dirtSystem.config.moundHeight;
+    const peakHeight = -7.6 + this.dirtSystem.config.moundHeight;
     this.wateringCan.update(dt || 0, peakHeight);
 
     // Stable Apple Hover Logic (survives rebuilds)
     if (this.currentGrowth >= 0.9) {
       this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
-      const intersects = this.raycaster.intersectObjects(this.tree.group.children, true);
-      
+      const intersects = this.raycaster.intersectObjects(
+        this.tree.group.children,
+        true,
+      );
+
       let hoveredFruitData = null;
       let hoveredInstanceId = -1;
 
       for (const intersect of intersects) {
-        if (intersect.object === this.tree.fruitInstancedMesh && intersect.instanceId !== undefined) {
+        if (
+          intersect.object === this.tree.fruitInstancedMesh &&
+          intersect.instanceId !== undefined
+        ) {
           hoveredInstanceId = intersect.instanceId;
           hoveredFruitData = this.tree.fruitData[hoveredInstanceId];
           break;
         }
       }
 
-      const tooltipEl = document.getElementById('apple-tooltip');
+      const tooltipEl = document.getElementById("apple-tooltip");
 
       if (hoveredFruitData) {
         const currentPath = hoveredFruitData.path;
-        
+
         // If we switched apples
         if (this.hoveredPath !== currentPath) {
           this.hoveredPath = currentPath;
-          
-            if (tooltipEl) {
-              const social = hoveredFruitData.social;
-              tooltipEl.textContent = social || 'Apple';
-              const colors = {
-                'Depth-First Inquiry': '#6366f1',
-                'Behavioral Protocols': '#db2777',
-                'Personal Hypotheses': '#0d9488',
-                'Reframing Engine': '#ca8a04',
-                'Evidence-First Proof': '#2563eb',
-                'Dual-Mode Sync': '#ea580c'
-              };
-              tooltipEl.style.backgroundColor = colors[social] || '#333333';
-              tooltipEl.classList.add('visible');
-            }
+
+          if (tooltipEl) {
+            const social = hoveredFruitData.social;
+            tooltipEl.textContent = social || "Apple";
+            tooltipEl.style.backgroundColor = APPLE_COLORS[social] || "#333333";
+            tooltipEl.classList.add("visible");
+          }
         }
 
         // Update halo shader uniforms
         if (this.tree.haloInstancedMesh) {
           this.tree.haloInstancedMesh.material.uniforms.opacity.value = 0.6;
-          this.tree.haloInstancedMesh.material.uniforms.activeInstance.value = hoveredInstanceId;
+          this.tree.haloInstancedMesh.material.uniforms.activeInstance.value =
+            hoveredInstanceId;
         }
-        
+
         if (tooltipEl) {
-          const vector = new THREE.Vector3().setFromMatrixPosition(hoveredFruitData.matrix);
+          const vector = new THREE.Vector3().setFromMatrixPosition(
+            hoveredFruitData.matrix,
+          );
           const canvas = this.sceneManager.renderer.domElement;
           vector.project(this.sceneManager.camera);
           const x = (vector.x * 0.5 + 0.5) * canvas.clientWidth;
           const y = (vector.y * -0.5 + 0.5) * canvas.clientHeight;
-          
+
           tooltipEl.style.left = `${x}px`;
-          tooltipEl.style.top = `${y - 40}px`; 
+          tooltipEl.style.top = `${y - 40}px`;
         }
 
-        document.body.style.cursor = 'pointer';
+        document.body.style.cursor = "pointer";
       } else {
         // MOUSE LEFT: Reset everything
         if (this.tree.haloInstancedMesh) {
           this.tree.haloInstancedMesh.material.uniforms.opacity.value = 0;
-          this.tree.haloInstancedMesh.material.uniforms.activeInstance.value = -1;
+          this.tree.haloInstancedMesh.material.uniforms.activeInstance.value =
+            -1;
         }
         this.hoveredPath = null;
-        if (tooltipEl) tooltipEl.classList.remove('visible');
-        document.body.style.cursor = 'default';
+        if (tooltipEl) tooltipEl.classList.remove("visible");
+        document.body.style.cursor = "default";
       }
     }
 
@@ -456,25 +509,27 @@ class App {
         this.currentGrowth < this.targetGrowth
           ? Math.min(this.currentGrowth + this.growthStep, this.targetGrowth)
           : Math.max(this.currentGrowth - this.growthStep, this.targetGrowth);
-      
+
       if (isGrowing) {
         const amountToSpawn = 1 + Math.floor(this.currentGrowth * 2.5);
-        for(let i=0; i<amountToSpawn; i++) {
+        for (let i = 0; i < amountToSpawn; i++) {
           this.dirtSystem.spawn(this.currentGrowth);
         }
       }
-      
+
       // Throttle rebuilds: dynamically adjusted based on previous rebuild durations to protect FPS
       if (this.rebuildThrottle === undefined) {
         this.rebuildThrottle = 0.012;
       }
-      const growthChange = Math.abs(this.currentGrowth - this.lastRebuildGrowth);
+      const growthChange = Math.abs(
+        this.currentGrowth - this.lastRebuildGrowth,
+      );
       const isAtTarget = this.currentGrowth === this.targetGrowth;
 
       if (growthChange > this.rebuildThrottle || isAtTarget) {
         const duration = this.tree.rebuild(this.currentGrowth);
         this.lastRebuildGrowth = this.currentGrowth;
-        
+
         // Dynamically adjust throttle based on CPU/rendering performance
         if (duration > 16.0) {
           // Slow CPU: increase throttle up to 0.03 (less rebuild frequency to avoid stutter)
@@ -483,16 +538,24 @@ class App {
           // Fast CPU: decrease throttle down to 0.01 for buttery smooth animation
           this.rebuildThrottle = Math.max(this.rebuildThrottle - 0.002, 0.01);
         }
-        
+
         if (rebuildValEl) {
-          const appleCount = this.tree.fruitData ? this.tree.fruitData.length : 0;
+          const appleCount = this.tree.fruitData
+            ? this.tree.fruitData.length
+            : 0;
           rebuildValEl.innerText = `${duration.toFixed(2)}ms (Throttle: ${this.rebuildThrottle.toFixed(3)}) | Apples: ${appleCount}`;
         }
       }
     }
 
-    const isScrollDone = Math.abs(this.targetScrollY - this.currentScrollY) < 1.0;
-    if (this.isTransitioning && isScrollDone && !this.wateringCan.isActive && this.currentGrowth === this.targetGrowth) {
+    const isScrollDone =
+      Math.abs(this.targetScrollY - this.currentScrollY) < 1.0;
+    if (
+      this.isTransitioning &&
+      isScrollDone &&
+      !this.wateringCan.isActive &&
+      this.currentGrowth === this.targetGrowth
+    ) {
       this.isTransitioning = false;
     }
 
@@ -501,10 +564,12 @@ class App {
     if (this.panningToApple) {
       this.sceneManager.camera.position.lerp(this.panTargetPos, 0.05);
       this.sceneManager.controls.target.lerp(this.panTargetLookAt, 0.05);
-      
+
       // Reveal Social UI after zoom is 95% complete
       if (this.pendingSocialType) {
-        const dist = this.sceneManager.camera.position.distanceTo(this.panTargetPos);
+        const dist = this.sceneManager.camera.position.distanceTo(
+          this.panTargetPos,
+        );
         if (dist < 0.5) {
           this.openSocialBox(this.pendingSocialType);
           this.pendingSocialType = null;
@@ -516,18 +581,46 @@ class App {
       }
     } else {
       const isMobile = window.innerWidth < 768;
-      const camStart = isMobile ? { x: -2, y: -5, z: 9 } : { x: -2, y: -4, z: 8 };
+      const camStart = isMobile
+        ? { x: -2, y: -5, z: 9 }
+        : { x: -2, y: -4, z: 8 };
       const camEnd = isMobile ? { x: 3, y: 7, z: 35 } : { x: 3, y: 5, z: 25 };
-      
-      this.sceneManager.camera.position.x = this._lerp(camStart.x, camEnd.x, this.currentGrowth);
-      this.sceneManager.camera.position.y = this._lerp(camStart.y, camEnd.y, this.currentGrowth);
-      this.sceneManager.camera.position.z = this._lerp(camStart.z, camEnd.z, this.currentGrowth);
 
-      const targetStart = isMobile ? { x: 0, y: -7.5, z: 0 } : { x: 0, y: -6, z: 0 };
+      this.sceneManager.camera.position.x = this._lerp(
+        camStart.x,
+        camEnd.x,
+        this.currentGrowth,
+      );
+      this.sceneManager.camera.position.y = this._lerp(
+        camStart.y,
+        camEnd.y,
+        this.currentGrowth,
+      );
+      this.sceneManager.camera.position.z = this._lerp(
+        camStart.z,
+        camEnd.z,
+        this.currentGrowth,
+      );
+
+      const targetStart = isMobile
+        ? { x: 0, y: -7.5, z: 0 }
+        : { x: 0, y: -6, z: 0 };
       const targetEnd = isMobile ? { x: 0, y: 6, z: 0 } : { x: 0, y: 4, z: 0 };
-      this.sceneManager.controls.target.x = this._lerp(targetStart.x, targetEnd.x, this.currentGrowth);
-      this.sceneManager.controls.target.y = this._lerp(targetStart.y, targetEnd.y, this.currentGrowth);
-      this.sceneManager.controls.target.z = this._lerp(targetStart.z, targetEnd.z, this.currentGrowth);
+      this.sceneManager.controls.target.x = this._lerp(
+        targetStart.x,
+        targetEnd.x,
+        this.currentGrowth,
+      );
+      this.sceneManager.controls.target.y = this._lerp(
+        targetStart.y,
+        targetEnd.y,
+        this.currentGrowth,
+      );
+      this.sceneManager.controls.target.z = this._lerp(
+        targetStart.z,
+        targetEnd.z,
+        this.currentGrowth,
+      );
     }
 
     this.tree.updateWind(timestamp * 0.001);
