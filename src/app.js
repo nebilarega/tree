@@ -2,6 +2,7 @@ import { SceneManager } from './scene.js';
 import { Tree } from './tree.js';
 import { DirtSystem } from './dirt.js';
 import { WateringCanSystem } from './watering.js';
+import { CloudSystem } from './cloudSystem.js';
 import { fpsValEl, rebuildValEl } from './ui.js';
 import * as THREE from 'three';
 
@@ -77,6 +78,7 @@ class App {
 
     this.sceneManager = new SceneManager();
     this.hdrLoaded = false;
+    this.cloudSystem = null;
     this.tree = new Tree(this.sceneManager.scene);
     this.dirtSystem = new DirtSystem(this.sceneManager.scene);
     this.wateringCan = new WateringCanSystem(
@@ -105,10 +107,16 @@ class App {
     this.sceneManager.onResize();
     this.tree.rebuild(0);
     
-    window.addEventListener('resize', () => this.sceneManager.onResize());
+    window.addEventListener('resize', () => {
+      this.sceneManager.onResize();
+      if (this.cloudSystem) {
+        this.cloudSystem.onResize(this.sceneManager.renderer);
+      }
+    });
     window.addEventListener('wheel', (e) => this.handleWheel(e), { passive: false });
     window.addEventListener('keydown', (e) => this.handleKey(e));
     window.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+    window.addEventListener('pointermove', (e) => this.handlePointerMove(e));
     window.addEventListener('click', (e) => this.handleClick(e));
 
     // Mobile Touch Events
@@ -154,6 +162,12 @@ class App {
       this.hdrLoaded = true;
       if (minTimeElapsed) this.hideLoader();
     });
+
+    CloudSystem.create(this.sceneManager.scene, this.sceneManager.renderer)
+      .then((cloudSystem) => {
+        this.cloudSystem = cloudSystem;
+      })
+      .catch(console.error);
   }
 
   hideLoader() {
@@ -172,6 +186,12 @@ class App {
   handleMouseMove(e) {
     this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  }
+
+  handlePointerMove(e) {
+    if (this.cloudSystem) {
+      this.cloudSystem.setPointer(e.clientX, e.clientY, this.sceneManager.renderer.domElement);
+    }
   }
 
   handleTouchStart(e) {
@@ -511,6 +531,9 @@ class App {
     }
 
     this.tree.updateWind(timestamp * 0.001);
+    if (this.cloudSystem) {
+      this.cloudSystem.update();
+    }
     this.sceneManager.controls.update();
     this.sceneManager.render();
   }
