@@ -22,7 +22,7 @@ class App {
     this.currentGrowth = 0.0;
     this.lastRebuildGrowth = 0.0;
     this.pendingGrowth = null;
-    this.growthStep = 0.005;
+    this.growthStep = 0.008;
     this.lastFpsUpdate = 0;
     this.framesCount = 0;
     this.lastTimestamp = 0;
@@ -39,6 +39,9 @@ class App {
     this.panningToApple = false;
     this.panTargetPos = new THREE.Vector3();
     this.panTargetLookAt = new THREE.Vector3();
+    this._appleWorldPos = new THREE.Vector3();
+    this._appleViewDir = new THREE.Vector3();
+    this._cameraOffset = new THREE.Vector3();
     this.userInteracted = false;
 
     // Mobile Touch State
@@ -224,10 +227,22 @@ class App {
   }
 
   handleTouchEnd(e) {
-    if (this.isTransitioning || this.panningToApple) return;
+    const touch = e.changedTouches[0];
+    const deltaY = this.touchStartY - touch.clientY;
 
-    const touchEndY = e.changedTouches[0].clientY;
-    const deltaY = this.touchStartY - touchEndY;
+    if (Math.abs(deltaY) <= this.touchThreshold) {
+      this.mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
+      this.mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+      if (this.currentGrowth >= 0.9 && !this.isTransitioning) {
+        const fruitData = this.getFruitUnderCursor();
+        if (fruitData) {
+          this.focusOnApple(fruitData);
+          return;
+        }
+      }
+    }
+
+    if (this.isTransitioning || this.panningToApple) return;
 
     if (Math.abs(deltaY) > this.touchThreshold) {
       if (deltaY > 0 && this.currentSectionIndex < this.sections.length - 1) {
@@ -238,45 +253,72 @@ class App {
     }
   }
 
-  handleClick(e) {
-    if (this.currentGrowth < 0.9 || this.isTransitioning) return;
-
+  getFruitUnderCursor() {
     this.raycaster.setFromCamera(this.mouse, this.sceneManager.camera);
     const intersects = this.raycaster.intersectObjects(
       this.tree.group.children,
       true,
     );
 
-    let fruitData = null;
     for (const intersect of intersects) {
       if (
         intersect.object === this.tree.fruitInstancedMesh &&
         intersect.instanceId !== undefined
       ) {
-        fruitData = this.tree.fruitData[intersect.instanceId];
-        break;
+        return this.tree.fruitData[intersect.instanceId];
       }
     }
 
-    if (fruitData) {
-      this.panningToApple = true;
-      this.userInteracted = true;
+    return null;
+  }
 
-      this.panTargetLookAt.copy(
-        new THREE.Vector3().setFromMatrixPosition(fruitData.matrix),
-      );
-      const dir = new THREE.Vector3()
-        .subVectors(this.sceneManager.camera.position, this.panTargetLookAt)
+  focusOnApple(fruitData) {
+    this.panningToApple = true;
+    this.userInteracted = true;
+
+    this._appleWorldPos.setFromMatrixPosition(fruitData.matrix);
+    this.panTargetLookAt.copy(this._appleWorldPos);
+
+    this._cameraOffset.subVectors(
+      this.sceneManager.camera.position,
+      this.sceneManager.controls.target,
+    );
+
+    if (this.isSocialBoxOpen && this._cameraOffset.lengthSq() > 1) {
+      // Already zoomed: keep the same viewing offset so switching apples pans visibly.
+      this.panTargetPos.copy(this._appleWorldPos).add(this._cameraOffset);
+    } else {
+      this._appleViewDir
+        .subVectors(this.sceneManager.camera.position, this._appleWorldPos)
         .normalize();
-      this.panTargetPos.copy(this.panTargetLookAt).addScaledVector(dir, 6);
-
-      // Queue Social UI (don't show yet)
-      const social = fruitData.social;
-      if (social && this.socialData[social]) {
-        this.pendingSocialType = social;
-      } else {
-        this.closeSocialBox(false);
+      if (this._appleViewDir.lengthSq() < 0.0001) {
+        this._appleViewDir.set(0.35, 0.25, 1).normalize();
       }
+      this.panTargetPos
+        .copy(this._appleWorldPos)
+        .addScaledVector(this._appleViewDir, 6);
+    }
+
+    const social = fruitData.social;
+    if (social && this.socialData[social]) {
+      if (this.isSocialBoxOpen) {
+        this.pendingSocialType = null;
+        this.openSocialBox(social);
+      } else {
+        this.pendingSocialType = social;
+      }
+    } else {
+      this.closeSocialBox(false);
+    }
+  }
+
+  handleClick(e) {
+    if (this.currentGrowth < 0.9 || this.isTransitioning) return;
+
+    const fruitData = this.getFruitUnderCursor();
+
+    if (fruitData) {
+      this.focusOnApple(fruitData);
     } else {
       this.closeSocialBox();
     }
@@ -368,6 +410,15 @@ class App {
   }
 
   updateSectionVisibility() {
+    // Keep the previous section visible while watering plays on forward scrolls
+    if (
+      this.isTransitioning &&
+      this.pendingGrowth !== null &&
+      this.wateringCan.isActive
+    ) {
+      return;
+    }
+
     this.sectionContents.forEach((content, index) => {
       if (index === this.currentSectionIndex) {
         content.classList.add("visible");
@@ -501,6 +552,7 @@ class App {
     if (!this.wateringCan.isActive && this.pendingGrowth !== null) {
       this.targetGrowth = this.pendingGrowth;
       this.pendingGrowth = null;
+      this.updateSectionVisibility();
     }
 
     if (this.currentGrowth !== this.targetGrowth) {
@@ -562,18 +614,24 @@ class App {
     this.dirtSystem.update(dt || 0);
 
     if (this.panningToApple) {
-      this.sceneManager.camera.position.lerp(this.panTargetPos, 0.05);
-      this.sceneManager.controls.target.lerp(this.panTargetLookAt, 0.05);
+      const panLerp = 1 - Math.exp(-4.5 * (dt || 0.016));
+      this.sceneManager.camera.position.lerp(
+        this.panTargetPos,
+        panLerp,
+      );
+      this.sceneManager.controls.target.lerp(
+        this.panTargetLookAt,
+        panLerp,
+      );
+      this.sceneManager.camera.lookAt(this.sceneManager.controls.target);
 
-      // Reveal Social UI after zoom is 95% complete
-      if (this.pendingSocialType) {
-        const dist = this.sceneManager.camera.position.distanceTo(
-          this.panTargetPos,
-        );
-        if (dist < 0.5) {
-          this.openSocialBox(this.pendingSocialType);
-          this.pendingSocialType = null;
-        }
+      const posDist = this.sceneManager.camera.position.distanceTo(
+        this.panTargetPos,
+      );
+
+      if (this.pendingSocialType && posDist < 0.45) {
+        this.openSocialBox(this.pendingSocialType);
+        this.pendingSocialType = null;
       }
 
       if (Math.abs(this.targetScrollY - this.currentScrollY) > 10) {
@@ -625,9 +683,11 @@ class App {
 
     this.tree.updateWind(timestamp * 0.001);
     if (this.cloudSystem) {
-      this.cloudSystem.update();
+      this.cloudSystem.update(this.panningToApple);
     }
-    this.sceneManager.controls.update();
+    if (!this.panningToApple) {
+      this.sceneManager.controls.update();
+    }
     this.sceneManager.render();
   }
 

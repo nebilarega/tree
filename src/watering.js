@@ -15,7 +15,7 @@ export class WateringCanSystem {
 
     // Animation path bounds (Home = Bottom-Right foreground viewer space)
     this.HOME_POS = new THREE.Vector3(5.5, -2.0, 5.0); // Moved forward (z: 5.0) to stay in front of camera
-    this.HOVER_POS = new THREE.Vector3(-1.8, 1.6 + 1.2, 1.2); 
+    this.HOVER_POS = new THREE.Vector3(-1.8, 1.6 + 1.2, 1.2);
     this.CAN_Y_ROT = 0.6; // Reversed sign for correct angle
 
     // Configuration Parameters
@@ -131,7 +131,7 @@ export class WateringCanSystem {
     for (let i = 0; i < this.maxMistPoints; i++) {
       mistPositions[i * 3 + 1] = -999;
     }
-    
+
     this.mistGeometry = new THREE.BufferGeometry();
     this.mistGeometry.setAttribute(
       "position",
@@ -175,7 +175,9 @@ export class WateringCanSystem {
 
     // Get the direction the spout is pointing in world space
     // The spout points along local X in our setup
-    const spoutDir = new THREE.Vector3(1, 0, 0).applyQuaternion(this.canGroup.quaternion);
+    const spoutDir = new THREE.Vector3(1, 0, 0).applyQuaternion(
+      this.canGroup.quaternion,
+    );
 
     for (let k = 0; k < 5; k++) {
       let slot = -1;
@@ -212,19 +214,23 @@ export class WateringCanSystem {
     // Dynamically update hover elevation target matrix parameters
     this.HOVER_POS.y = currentMoundHeight + 1.2;
 
-    if (this.animationTime < 1.4) {
+    if (this.animationTime < 0.65) {
       // Phase 1: Sweep up from screen foreground frame margins
-      const t = this.animationTime / 1.4;
+      const t = this.animationTime / 0.65;
       const easeOutSky = 1 - (1 - t) * (1 - t);
       this.canGroup.position.lerpVectors(
         this.HOME_POS,
         this.HOVER_POS,
         easeOutSky,
       );
-      this.canGroup.rotation.set(0, THREE.MathUtils.lerp(0, this.CAN_Y_ROT, easeOutSky), 0);
-    } else if (this.animationTime >= 1.4 && this.animationTime < 4.2) {
+      this.canGroup.rotation.set(
+        0,
+        THREE.MathUtils.lerp(0, this.CAN_Y_ROT, easeOutSky),
+        0,
+      );
+    } else if (this.animationTime >= 0.65 && this.animationTime < 1.85) {
       // Phase 2: Action lock window. Tilt and release GPU mist
-      const tiltProgress = Math.min((this.animationTime - 1.4) / 0.4, 1.0);
+      const tiltProgress = Math.min((this.animationTime - 0.65) / 0.25, 1.0);
       this.canGroup.rotation.y = this.CAN_Y_ROT;
       this.canGroup.rotation.z = THREE.MathUtils.lerp(
         0,
@@ -233,9 +239,9 @@ export class WateringCanSystem {
       );
 
       this._emitParticles();
-    } else if (this.animationTime >= 4.2 && this.animationTime < 5.6) {
+    } else if (this.animationTime >= 1.85 && this.animationTime < 2.45) {
       // Phase 3: Straighten up and fall out of rendering space bounds
-      const t = (this.animationTime - 4.2) / 1.4;
+      const t = (this.animationTime - 1.85) / 0.6;
       this.canGroup.rotation.y = THREE.MathUtils.lerp(this.CAN_Y_ROT, 0, t);
       this.canGroup.rotation.z = THREE.MathUtils.lerp(
         -Math.PI / 5.2,

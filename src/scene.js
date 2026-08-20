@@ -97,6 +97,7 @@ export class SceneManager {
   }
 
   render() {
+    this.renderer.setRenderTarget(null);
     this.renderer.render(this.scene, this.camera);
   }
 }

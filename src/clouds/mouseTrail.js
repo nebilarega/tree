@@ -89,9 +89,12 @@ export function createMouseTrail(renderer, detailTexture, size = 256) {
       material.uniforms.tLast.value = read.texture;
 
       const prevTarget = renderer.getRenderTarget();
-      renderer.setRenderTarget(write);
-      renderer.render(scene, camera);
-      renderer.setRenderTarget(prevTarget);
+      try {
+        renderer.setRenderTarget(write);
+        renderer.render(scene, camera);
+      } finally {
+        renderer.setRenderTarget(prevTarget);
+      }
 
       this.texture = write.texture;
       frame += 1;

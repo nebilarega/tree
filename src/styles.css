@@ -756,12 +756,26 @@ section:nth-child(even) .section-content {
   padding: 0.9rem;
   border-radius: 100px;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 10px color-mix(in srgb, var(--social-accent, var(--accent-color)) 28%, transparent);
+  box-shadow: 0 4px 10px
+    color-mix(
+      in srgb,
+      var(--social-accent, var(--accent-color)) 28%,
+      transparent
+    );
 }
 
 #social-box .social-link:hover {
-  background: color-mix(in srgb, var(--social-accent, var(--accent-color)) 82%, black);
-  box-shadow: 0 6px 14px color-mix(in srgb, var(--social-accent, var(--accent-color)) 36%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--social-accent, var(--accent-color)) 82%,
+    black
+  );
+  box-shadow: 0 6px 14px
+    color-mix(
+      in srgb,
+      var(--social-accent, var(--accent-color)) 36%,
+      transparent
+    );
   transform: translateY(-1px);
 }
 

@@ -106,15 +106,17 @@ export class CloudLayer {
     }
   }
 
-  update(elapsed) {
+  update(elapsed, skipMouseTrail = false) {
     const time = elapsed * this.timeScale;
     this.uniforms.uTime.value = time;
 
-    this.mouseNdc.lerp(this.mouseTarget, this.mouseLerp);
-    this.mouseVelocity.subVectors(this.mouseNdc, this.prevMouse);
-    this.prevMouse.copy(this.mouseNdc);
-    this.mouseTrail.update(time, this.mouseNdc, this.mouseVelocity);
-    this.uniforms.tMouse.value = this.mouseTrail.texture;
+    if (!skipMouseTrail) {
+      this.mouseNdc.lerp(this.mouseTarget, this.mouseLerp);
+      this.mouseVelocity.subVectors(this.mouseNdc, this.prevMouse);
+      this.prevMouse.copy(this.mouseNdc);
+      this.mouseTrail.update(time, this.mouseNdc, this.mouseVelocity);
+      this.uniforms.tMouse.value = this.mouseTrail.texture;
+    }
   }
 
   setPointer(clientX, clientY, domElement) {

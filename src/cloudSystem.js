@@ -48,9 +48,9 @@ export class CloudSystem {
     this.startTime = performance.now() / 1000;
   }
 
-  update() {
+  update(skipMouseTrail = false) {
     const elapsed = performance.now() / 1000 - this.startTime;
-    this.clouds.update(elapsed);
+    this.clouds.update(elapsed, skipMouseTrail);
   }
 
   setPointer(clientX, clientY, domElement) {
