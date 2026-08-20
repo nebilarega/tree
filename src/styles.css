@@ -366,8 +366,82 @@ section:nth-child(even) .skill-cards-row {
 .icon-yellow { background: #fef9c3; color: #ca8a04; }
 
 @media (max-width: 768px) {
-  section:nth-child(even) .skill-cards-row {
+  section {
+    padding: 5.5rem 1.25rem 1.5rem;
     justify-content: flex-start;
+    align-items: stretch;
+  }
+
+  .section-content {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  /* On mobile, all stages align left — tree lives in the lower viewport */
+  section:nth-child(even) .section-content {
+    align-self: stretch;
+  }
+
+  section:not(#hero) h2 {
+    font-size: clamp(1.85rem, 9vw, 2.35rem);
+    margin-bottom: 0.85rem;
+  }
+
+  section:not(#hero) p {
+    font-size: 0.98rem;
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+  }
+
+  section:not(#hero) .section-badge {
+    font-size: 0.62rem;
+    padding: 5px 12px;
+    margin-bottom: 0.85rem;
+  }
+
+  section:not(#hero) .skill-cards-row {
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    margin-top: 0.35rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    justify-content: flex-start !important;
+    width: 100%;
+  }
+
+  section:not(#hero) .skill-cards-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  section:not(#hero) .skill-mini-card {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.78rem;
+    flex-shrink: 0;
+    gap: 0.5rem;
+  }
+
+  section:not(#hero) .mini-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 0.85rem;
+  }
+
+  #hero h1 {
+    font-size: clamp(2.25rem, 11vw, 3rem);
+  }
+
+  #hero p {
+    font-size: 1rem;
+  }
+
+  .hero-actions {
+    margin-bottom: 1.25rem;
+  }
+
+  .scroll-hint {
+    bottom: 1.25rem;
+    font-size: 0.68rem;
   }
 }
 

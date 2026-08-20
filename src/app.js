@@ -516,14 +516,14 @@ class App {
       }
     } else {
       const isMobile = window.innerWidth < 768;
-      const camStart = { x: -2, y: -4, z: 8 };
+      const camStart = isMobile ? { x: -2, y: -5, z: 9 } : { x: -2, y: -4, z: 8 };
       const camEnd = isMobile ? { x: 3, y: 7, z: 35 } : { x: 3, y: 5, z: 25 };
       
       this.sceneManager.camera.position.x = this._lerp(camStart.x, camEnd.x, this.currentGrowth);
       this.sceneManager.camera.position.y = this._lerp(camStart.y, camEnd.y, this.currentGrowth);
       this.sceneManager.camera.position.z = this._lerp(camStart.z, camEnd.z, this.currentGrowth);
 
-      const targetStart = { x: 0, y: -6, z: 0 };
+      const targetStart = isMobile ? { x: 0, y: -7.5, z: 0 } : { x: 0, y: -6, z: 0 };
       const targetEnd = isMobile ? { x: 0, y: 6, z: 0 } : { x: 0, y: 4, z: 0 };
       this.sceneManager.controls.target.x = this._lerp(targetStart.x, targetEnd.x, this.currentGrowth);
       this.sceneManager.controls.target.y = this._lerp(targetStart.y, targetEnd.y, this.currentGrowth);
