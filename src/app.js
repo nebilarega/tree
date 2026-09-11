@@ -85,7 +85,11 @@ class App {
     this.wateringCan = new WateringCanSystem(
       this.sceneManager.scene,
       (r, x, z) =>
-        Math.max(-7.51, this.dirtSystem.calculateSurfaceHeight(r, x, z) - 7.6),
+        Math.max(
+          -7.8,
+          this.dirtSystem.calculateSurfaceHeight(r, x, z) +
+            this.dirtSystem.islandGroup.position.y,
+        ),
     );
 
     this.sections = document.querySelectorAll("section");
@@ -481,7 +485,9 @@ class App {
       this.framesCount = 0;
     }
 
-    const peakHeight = -7.6 + this.dirtSystem.config.moundHeight;
+    const peakHeight =
+      this.dirtSystem.islandGroup.position.y +
+      this.dirtSystem.config.moundHeight;
     this.wateringCan.update(dt || 0, peakHeight);
 
     // Stable Apple Hover Logic (survives rebuilds)
@@ -620,6 +626,8 @@ class App {
     }
 
     this.dirtSystem.update(dt || 0);
+    // Keep the tree planted on the bobbing island
+    this.tree.group.position.y = this.dirtSystem.buoyancyOffset;
 
     if (this.panningToApple) {
       const panLerp = 1 - Math.exp(-4.5 * (dt || 0.016));
@@ -648,8 +656,8 @@ class App {
     } else {
       const isMobile = window.innerWidth < 768;
       const camStart = isMobile
-        ? { x: -2, y: -5, z: 9 }
-        : { x: -2, y: -4, z: 8 };
+        ? { x: 0, y: -5.4, z: 10.2 }
+        : { x: 0, y: -4.6, z: 9.6 };
       const camEnd = isMobile ? { x: 3, y: 7, z: 35 } : { x: 3, y: 5, z: 25 };
 
       this.sceneManager.camera.position.x = this._lerp(
@@ -669,8 +677,8 @@ class App {
       );
 
       const targetStart = isMobile
-        ? { x: 0, y: -7.5, z: 0 }
-        : { x: 0, y: -6, z: 0 };
+        ? { x: 0, y: -6.8, z: 0 }
+        : { x: 0, y: -6.5, z: 0 };
       const targetEnd = isMobile ? { x: 0, y: 6, z: 0 } : { x: 0, y: 4, z: 0 };
       this.sceneManager.controls.target.x = this._lerp(
         targetStart.x,

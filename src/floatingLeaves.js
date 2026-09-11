@@ -10,6 +10,10 @@ const LEAF_COLORS = [
   0xb7c98a,
   0xd4e157,
   0xc5d86a,
+  // Soft lilac flower petals matching sample_mound.png
+  0xc4a1e0,
+  0xd8b4f8,
+  0xb388eb,
 ];
 
 function createFloatingLeafShape() {

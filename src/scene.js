@@ -14,7 +14,7 @@ export class SceneManager {
       0.1,
       1000,
     );
-    this.camera.position.set(-2, -4, 8);
+    this.camera.position.set(0, -4.6, 9.6);
 
     this.isMobile =
       /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
@@ -28,13 +28,13 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = !this.isMobile;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.08;
     this.renderer.domElement.id = "scene-canvas";
     document.body.appendChild(this.renderer.domElement);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
-    this.controls.target.set(0, -6, 0);
+    this.controls.target.set(0, -6.5, 0);
     this.controls.update();
 
     this.initLights();
@@ -45,7 +45,7 @@ export class SceneManager {
     const shadowRes = this.isMobile ? 1024 : 2048;
 
     // Main Key Light (Warm, Golden Sun)
-    this.sunLight = new THREE.DirectionalLight("#fff2d5", 3.8);
+    this.sunLight = new THREE.DirectionalLight("#fff2d5", 3.0);
     this.sunLight.position.set(15, 25, 12);
     if (!this.isMobile) {
       this.sunLight.castShadow = true;
@@ -72,6 +72,11 @@ export class SceneManager {
     const rimLight = new THREE.PointLight("#ffffff", 120);
     rimLight.position.set(0, 15, -15);
     this.scene.add(rimLight);
+
+    // Cloud Bounce Light (soft celestial upward bounce for the floating island keel)
+    const cloudBounceLight = new THREE.DirectionalLight("#c4b5fd", 0.85);
+    cloudBounceLight.position.set(0, -20, 5);
+    this.scene.add(cloudBounceLight);
 
     this.ambLight = new THREE.AmbientLight("#ede9fe", 0.5);
     this.scene.add(this.ambLight);
