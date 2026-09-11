@@ -3,6 +3,7 @@ import { Tree } from "./tree.js";
 import { DirtSystem } from "./dirt.js";
 import { WateringCanSystem } from "./watering.js";
 import { CloudSystem } from "./cloudSystem.js";
+import { FloatingLeavesSystem } from "./floatingLeaves.js";
 import { mountIcons } from "./icons.js";
 import { fpsValEl, rebuildValEl } from "./ui.js";
 import * as THREE from "three";
@@ -75,6 +76,10 @@ class App {
     this.sceneManager = new SceneManager();
     this.hdrLoaded = false;
     this.cloudSystem = null;
+    this.floatingLeaves = new FloatingLeavesSystem(
+      this.sceneManager.scene,
+      this.sceneManager.camera,
+    );
     this.tree = new Tree(this.sceneManager.scene);
     this.dirtSystem = new DirtSystem(this.sceneManager.scene);
     this.wateringCan = new WateringCanSystem(
@@ -655,6 +660,8 @@ class App {
     }
 
     this.tree.updateWind(timestamp * 0.001);
+    this.floatingLeaves.setScrollProgress(this.currentScrollY);
+    this.floatingLeaves.update(timestamp * 0.001);
     if (this.cloudSystem) {
       this.cloudSystem.update(this.panningToApple);
     }

@@ -13,6 +13,7 @@ export class Tree {
   constructor(scene) {
     this.scene = scene;
     this.group = new THREE.Group();
+    this.group.renderOrder = 2;
     this.scene.add(this.group);
 
     this.barkTexture = this._createProceduralBarkTexture();
