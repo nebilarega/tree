@@ -93,6 +93,14 @@ export class FloatingLeavesSystem {
     };
     this.bounds = bounds;
 
+    // Pointer interaction state
+    this.mouseNdc = new THREE.Vector2(999, 999);
+    this.mouseTarget = new THREE.Vector2(999, 999);
+    this.mouseVelocity = new THREE.Vector2(0, 0);
+    this.prevMouse = new THREE.Vector2(999, 999);
+    this.hasPointer = false;
+    this.lastTime = 0;
+
     for (let i = 0; i < leafCount; i++) {
       const depth = randomInRange(bounds.z[0], bounds.z[1]);
       const depthT = (depth - bounds.z[0]) / (bounds.z[1] - bounds.z[0]);
@@ -159,8 +167,32 @@ export class FloatingLeavesSystem {
         baseX,
         baseY,
         baseZ,
+        dispX: 0,
+        dispY: 0,
+        dispZ: 0,
+        vx: 0,
+        vy: 0,
+        vz: 0,
+        rotVx: 0,
+        rotVz: 0,
       });
     }
+  }
+
+  setPointer(clientX, clientY, domElement) {
+    const rect = domElement.getBoundingClientRect();
+    this.mouseTarget.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouseTarget.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    if (!this.hasPointer) {
+      this.mouseNdc.copy(this.mouseTarget);
+      this.prevMouse.copy(this.mouseTarget);
+      this.hasPointer = true;
+    }
+  }
+
+  clearPointer() {
+    this.hasPointer = false;
+    this.mouseTarget.set(999, 999);
   }
 
   setScrollProgress(scrollY) {
@@ -172,13 +204,48 @@ export class FloatingLeavesSystem {
     leaf.baseX = randomInRange(this.bounds.x[0], this.bounds.x[1]);
     leaf.baseY = this.bounds.y[1] - Math.random() * 1.5;
     leaf.baseZ = randomInRange(this.bounds.z[0], this.bounds.z[1]);
+    leaf.dispX = 0;
+    leaf.dispY = 0;
+    leaf.dispZ = 0;
+    leaf.vx = 0;
+    leaf.vy = 0;
+    leaf.vz = 0;
+    leaf.rotVx = 0;
+    leaf.rotVz = 0;
   }
 
-  update(time) {
+  update(time, delta) {
+    const dt =
+      delta !== undefined
+        ? Math.min(Math.max(delta, 0.001), 0.1)
+        : this.lastTime
+          ? Math.min(Math.max(time - this.lastTime, 0.001), 0.1)
+          : 0.016;
+    this.lastTime = time;
+
     this.scrollT += (this.targetScrollT - this.scrollT) * 0.06;
     const scrollSway = 1 + this.scrollT * 0.35;
 
     this.camera.updateMatrixWorld();
+
+    if (this.hasPointer) {
+      this.mouseNdc.lerp(this.mouseTarget, 0.22);
+      this.mouseVelocity.subVectors(this.mouseNdc, this.prevMouse);
+      this.prevMouse.copy(this.mouseNdc);
+    } else {
+      this.mouseVelocity.set(0, 0);
+    }
+
+    const mouseSpeed = this.mouseVelocity.length();
+    const fovRad = (this.camera.fov * Math.PI) / 180;
+    const tanHalfFov = Math.tan(fovRad * 0.5);
+    const aspect = this.camera.aspect || 1.0;
+
+    // Interaction radius in camera units (~24% of screen height)
+    const interactionRadius = 9.0;
+    const interactionRadiusSq = interactionRadius * interactionRadius;
+    const damping = Math.exp(-4.5 * dt);
+    const springK = 7.5;
 
     for (const leaf of this.leaves) {
       const mesh = leaf.mesh;
@@ -188,8 +255,7 @@ export class FloatingLeavesSystem {
         Math.sin(time * leaf.floatSpeed + leaf.phase) * leaf.floatAmp;
       const wobbleY =
         Math.sin(time * leaf.wobbleSpeed + leaf.phase2) * leaf.wobbleAmp;
-
-      const localY = leaf.baseY + primaryY + wobbleY;
+      const baseY = leaf.baseY + primaryY + wobbleY;
 
       const primaryX =
         Math.sin(time * leaf.swaySpeed + leaf.phase) *
@@ -199,18 +265,83 @@ export class FloatingLeavesSystem {
         Math.sin(time * leaf.wobbleSpeed * 1.3 + leaf.phase3) *
         leaf.wobbleAmp *
         0.8;
+      const baseX = leaf.baseX + primaryX + wobbleX;
 
-      const localX = leaf.baseX + primaryX + wobbleX;
-      const localZ =
+      const baseZ =
         leaf.baseZ +
         Math.sin(time * leaf.wobbleSpeedZ + leaf.phase2) * leaf.wobbleAmpZ;
+
+      // Current position in camera space before physics step
+      const currentX = baseX + leaf.dispX;
+      const currentY = baseY + leaf.dispY;
+      const currentZ = baseZ + leaf.dispZ;
+
+      if (this.hasPointer) {
+        const depth = -currentZ;
+        const halfH = depth * tanHalfFov;
+        const halfW = halfH * aspect;
+
+        const mouseCamX = this.mouseNdc.x * halfW;
+        const mouseCamY = this.mouseNdc.y * halfH;
+
+        const dx = currentX - mouseCamX;
+        const dy = currentY - mouseCamY;
+        const distSq = dx * dx + dy * dy;
+
+        if (distSq < interactionRadiusSq) {
+          const dist = Math.sqrt(distSq);
+          const nx = dist > 0.001 ? dx / dist : (Math.random() - 0.5);
+          const ny = dist > 0.001 ? dy / dist : (Math.random() - 0.5);
+
+          const prox = 1.0 - dist / interactionRadius;
+          const smoothProx = prox * prox * (3.0 - 2.0 * prox);
+
+          const mouseVelCamX = this.mouseVelocity.x * halfW;
+          const mouseVelCamY = this.mouseVelocity.y * halfH;
+          const speedBoost = Math.min(mouseSpeed * 40.0, 5.0);
+          const pushForce = (0.7 + speedBoost * 3.5) * smoothProx;
+
+          // Radial repulsion
+          leaf.vx += nx * pushForce * 36.0 * dt;
+          leaf.vy += ny * pushForce * 36.0 * dt;
+
+          // Drag along with mouse sweep direction ("shoo" impulse)
+          leaf.vx += mouseVelCamX * smoothProx * 45.0 * dt;
+          leaf.vy += mouseVelCamY * smoothProx * 45.0 * dt;
+
+          // Depth flutter and rotational tumble
+          leaf.vz += (Math.random() - 0.3) * pushForce * 12.0 * dt;
+          leaf.rotVx += (ny * 2.0 + (Math.random() - 0.5)) * pushForce * 10.0 * dt;
+          leaf.rotVz += (-nx * 2.0 + (Math.random() - 0.5)) * pushForce * 10.0 * dt;
+        }
+      }
+
+      // Critically damped spring return
+      leaf.vx += -springK * leaf.dispX * dt;
+      leaf.vy += -springK * leaf.dispY * dt;
+      leaf.vz += -springK * leaf.dispZ * dt;
+
+      leaf.vx *= damping;
+      leaf.vy *= damping;
+      leaf.vz *= damping;
+
+      leaf.dispX += leaf.vx * dt;
+      leaf.dispY += leaf.vy * dt;
+      leaf.dispZ += leaf.vz * dt;
+
+      leaf.rotVx *= damping;
+      leaf.rotVz *= damping;
+
+      const localX = baseX + leaf.dispX;
+      const localY = baseY + leaf.dispY;
+      const localZ = baseZ + leaf.dispZ;
 
       // Camera-local → world so size stays constant as the camera dollies.
       this._local.set(localX, localY, localZ);
       this._world.copy(this._local).applyMatrix4(this.camera.matrixWorld);
       mesh.position.copy(this._world);
 
-      mesh.rotation.z += leaf.rotSpeed * 0.004 * scrollSway;
+      mesh.rotation.z += leaf.rotSpeed * 0.004 * scrollSway + leaf.rotVz * dt;
       mesh.rotation.z +=
         Math.sin(time * leaf.flutterSpeed + leaf.phase3) *
         leaf.flutterAmp *
@@ -218,7 +349,8 @@ export class FloatingLeavesSystem {
 
       mesh.rotation.x =
         Math.sin(time * leaf.swaySpeed * 0.7 + leaf.phase) * 0.2 * scrollSway +
-        Math.sin(time * leaf.flutterSpeed * 0.8 + leaf.phase2) * leaf.flutterAmp;
+        Math.sin(time * leaf.flutterSpeed * 0.8 + leaf.phase2) * leaf.flutterAmp +
+        leaf.rotVx * dt;
 
       mesh.rotation.y +=
         leaf.rotSpeed * 0.003 +

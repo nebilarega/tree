@@ -123,15 +123,32 @@ class App {
     window.addEventListener("keydown", (e) => this.handleKey(e));
     window.addEventListener("mousemove", (e) => this.handleMouseMove(e));
     window.addEventListener("pointermove", (e) => this.handlePointerMove(e));
+    window.addEventListener("pointerleave", () => this.handlePointerLeave());
     window.addEventListener("click", (e) => this.handleClick(e));
 
     // Mobile Touch Events
     window.addEventListener("touchstart", (e) => this.handleTouchStart(e), {
       passive: false,
     });
-    window.addEventListener("touchmove", (e) => e.preventDefault(), {
-      passive: false,
-    });
+    window.addEventListener(
+      "touchmove",
+      (e) => {
+        if (e.touches.length > 0) {
+          const touch = e.touches[0];
+          const dom = this.sceneManager.renderer.domElement;
+          if (this.cloudSystem) {
+            this.cloudSystem.setPointer(touch.clientX, touch.clientY, dom);
+          }
+          if (this.floatingLeaves) {
+            this.floatingLeaves.setPointer(touch.clientX, touch.clientY, dom);
+          }
+        }
+        e.preventDefault();
+      },
+      {
+        passive: false,
+      },
+    );
     window.addEventListener("touchend", (e) => this.handleTouchEnd(e), {
       passive: false,
     });
@@ -198,15 +215,28 @@ class App {
   handleMouseMove(e) {
     this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
     this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-  }
-
-  handlePointerMove(e) {
-    if (this.cloudSystem) {
-      this.cloudSystem.setPointer(
+    if (this.floatingLeaves) {
+      this.floatingLeaves.setPointer(
         e.clientX,
         e.clientY,
         this.sceneManager.renderer.domElement,
       );
+    }
+  }
+
+  handlePointerMove(e) {
+    const dom = this.sceneManager.renderer.domElement;
+    if (this.cloudSystem) {
+      this.cloudSystem.setPointer(e.clientX, e.clientY, dom);
+    }
+    if (this.floatingLeaves) {
+      this.floatingLeaves.setPointer(e.clientX, e.clientY, dom);
+    }
+  }
+
+  handlePointerLeave() {
+    if (this.floatingLeaves) {
+      this.floatingLeaves.clearPointer();
     }
   }
 
@@ -661,7 +691,7 @@ class App {
 
     this.tree.updateWind(timestamp * 0.001);
     this.floatingLeaves.setScrollProgress(this.currentScrollY);
-    this.floatingLeaves.update(timestamp * 0.001);
+    this.floatingLeaves.update(timestamp * 0.001, dt);
     if (this.cloudSystem) {
       this.cloudSystem.update(this.panningToApple);
     }
