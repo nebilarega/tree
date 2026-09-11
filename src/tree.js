@@ -344,12 +344,9 @@ export class Tree {
 
   _renderFruits(individualScale = 1.0) {
     const socialConfigs = [
-      { name: "Depth-First Inquiry", color: "#6366f1" },
-      { name: "Behavioral Protocols", color: "#db2777" },
-      { name: "Personal Hypotheses", color: "#0d9488" },
-      { name: "Reframing Engine", color: "#ca8a04" },
-      { name: "Evidence-First Proof", color: "#2563eb" },
-      { name: "Dual-Mode Sync", color: "#ea580c" },
+      { name: "LinkedIn", color: "#0077b5" },
+      { name: "GitHub", color: "#111111" },
+      { name: "Portfolio", color: "#ff6666" },
     ];
 
     const poolSize = this.fruitTransforms.length;
@@ -360,20 +357,23 @@ export class Tree {
     );
 
     const socialIndices = [
-      Math.floor(poolSize * 0.15),
-      Math.floor(poolSize * 0.3),
-      Math.floor(poolSize * 0.45),
+      Math.floor(poolSize * 0.4),
+      Math.floor(poolSize * 0.5),
       Math.floor(poolSize * 0.6),
-      Math.floor(poolSize * 0.75),
-      Math.floor(poolSize * 0.9),
     ];
 
     const numTotalApples = 25;
     const indicesToRender = [];
 
-    for (let i = 0; i < numTotalApples; i++) {
-      const idx = Math.floor((i / numTotalApples) * (poolSize - 1));
-      indicesToRender.push({ index: idx, socialIndex: i % socialConfigs.length });
+    socialIndices.forEach((idx) =>
+      indicesToRender.push({ index: idx, isSocial: true }),
+    );
+    const fillerCount = numTotalApples - socialIndices.length;
+    for (let i = 0; i < fillerCount; i++) {
+      const idx = Math.floor((i / fillerCount) * (poolSize - 1));
+      if (!socialIndices.includes(idx)) {
+        indicesToRender.push({ index: idx, isSocial: false });
+      }
     }
 
     this.fruitInstancedMesh = new THREE.InstancedMesh(
@@ -415,11 +415,15 @@ export class Tree {
       this.fruitInstancedMesh.setMatrixAt(i, matrix);
       this.haloInstancedMesh.setMatrixAt(i, matrix);
 
-      const socialConfig = socialConfigs[item.socialIndex];
+      let socialConfig = null;
+      if (item.isSocial) {
+        const sIdx = socialIndices.indexOf(item.index);
+        socialConfig = socialConfigs[sIdx];
+      }
 
       this.fruitData[i] = {
         path: fruitData.path,
-        social: socialConfig.name,
+        social: socialConfig ? socialConfig.name : null,
         matrix: matrix.clone(),
       };
     });

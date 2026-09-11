@@ -8,12 +8,9 @@ import { fpsValEl, rebuildValEl } from "./ui.js";
 import * as THREE from "three";
 
 const APPLE_COLORS = {
-  "Depth-First Inquiry": "#6366f1",
-  "Behavioral Protocols": "#db2777",
-  "Personal Hypotheses": "#0d9488",
-  "Reframing Engine": "#ca8a04",
-  "Evidence-First Proof": "#2563eb",
-  "Dual-Mode Sync": "#ea580c",
+  LinkedIn: "#0077b5",
+  GitHub: "#111111",
+  Portfolio: "#ff6666",
 };
 
 class App {
@@ -52,35 +49,21 @@ class App {
     this.isSocialBoxOpen = false;
     this.pendingSocialType = null; // New: queue the box appearance
     this.socialData = {
-      "Depth-First Inquiry": {
-        title: "Depth-First Inquiry",
-        desc: "Instead of generic advice, Thriven drills deep into single conversational threads to extract meaningful breakthrough insights.",
-        url: "#",
+      LinkedIn: {
+        title: "LinkedIn",
+        desc: "Professional background, career history, and how to reach me.",
+        url: "https://linkedin.com",
       },
-      "Behavioral Protocols": {
-        title: "Behavioral Protocols",
-        desc: "Specialized, self-activating career guardrails tailored for critical phases like Burnout, Job Loss, and Workplace Conflict.",
-        url: "#",
+      GitHub: {
+        title: "GitHub",
+        desc: "Open-source projects, experiments, and the code behind this portfolio.",
+        url: "https://github.com",
       },
-      "Personal Hypotheses": {
-        title: "Personal Hypotheses",
-        desc: "Formulates personalized growth theories about your career progression, challenging boundaries and testing limits.",
+      Portfolio: {
+        title: "Selected Work",
+        desc: "Case studies and write-ups on specific projects and architectural decisions.",
         url: "#",
-      },
-      "Reframing Engine": {
-        title: "Reframing Engine",
-        desc: "Transforms self-doubt, career anxiety, and promotion stagnation into actionable, empowering professional blueprints.",
-        url: "#",
-      },
-      "Evidence-First Proof": {
-        title: "Evidence-First Proof",
-        desc: "Replaces vague skills with verified metrics. No capability is logged without concrete professional evidence to back it up.",
-        url: "#",
-      },
-      "Dual-Mode Sync": {
-        title: "Dual-Mode Sync",
-        desc: "Toggle seamlessly between active reflective coaching sessions and silent, passive daily micro-logging.",
-        url: "#",
+        cta: "VIEW SELECTED WORK",
       },
     };
 
@@ -335,7 +318,7 @@ class App {
       title.textContent = data.title;
       desc.textContent = data.desc;
       url.href = data.url;
-      url.textContent = `VISIT ${data.title.toUpperCase()}`;
+      url.textContent = data.cta || `VISIT ${data.title.toUpperCase()}`;
       this.applySocialTheme(type);
       box.classList.add("visible");
       this.isSocialBoxOpen = true;
@@ -427,23 +410,13 @@ class App {
       }
     });
 
-    // Toggle living system card visibility
-    const systemCard = document.getElementById("living-system-card");
-    if (systemCard) {
-      if (this.currentSectionIndex === this.sections.length - 1) {
-        systemCard.classList.add("visible");
-      } else {
-        systemCard.classList.remove("visible");
-      }
-    }
-
     // Update scroll hint text
     const hint = document.getElementById("scroll-hint");
     if (hint) {
       if (this.currentSectionIndex === this.sections.length - 1) {
-        hint.textContent = "Scroll to Return";
+        hint.textContent = "Scroll to the top";
       } else {
-        hint.textContent = "Scroll to Nourish";
+        hint.textContent = "Scroll to continue";
       }
     }
   }
