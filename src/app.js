@@ -67,6 +67,7 @@ class App {
         cta: "VIEW SELECTED WORK",
       },
     };
+    this._appleZoomClones = [];
 
     // Custom Smooth Scroll State
     this.currentScrollY = window.scrollY;
@@ -120,6 +121,7 @@ class App {
       if (this.cloudSystem) {
         this.cloudSystem.onResize(this.sceneManager.renderer);
       }
+      this._syncAppleZoomUi();
     });
     window.addEventListener("wheel", (e) => this.handleWheel(e), {
       passive: false,
@@ -707,6 +709,46 @@ class App {
       this.sceneManager.controls.update();
     }
     this.sceneManager.render();
+    const zooming = this.panningToApple;
+    document.body.classList.toggle("apple-zoom", zooming);
+    if (zooming) this._hoistAppleZoomUi();
+    else this._restoreAppleZoomUi();
+  }
+
+  _hoistAppleZoomUi() {
+    if (this._appleZoomClones.length) return;
+    const nodes = document.querySelectorAll(
+      ".section-content.visible .section-badge, .section-content.visible .skill-cards-row, .section-content.visible .hero-actions",
+    );
+    nodes.forEach((el) => {
+      const rect = el.getBoundingClientRect();
+      const clone = el.cloneNode(true);
+      clone.classList.add("apple-zoom-ui-clone");
+      clone.style.left = `${rect.left}px`;
+      clone.style.top = `${rect.top}px`;
+      clone.style.width = `${rect.width}px`;
+      document.body.appendChild(clone);
+      el.classList.add("apple-zoom-ui-hidden");
+      this._appleZoomClones.push({ el, clone });
+    });
+  }
+
+  _syncAppleZoomUi() {
+    for (const { el, clone } of this._appleZoomClones) {
+      const rect = el.getBoundingClientRect();
+      clone.style.left = `${rect.left}px`;
+      clone.style.top = `${rect.top}px`;
+      clone.style.width = `${rect.width}px`;
+    }
+  }
+
+  _restoreAppleZoomUi() {
+    if (!this._appleZoomClones.length) return;
+    for (const { el, clone } of this._appleZoomClones) {
+      el.classList.remove("apple-zoom-ui-hidden");
+      clone.remove();
+    }
+    this._appleZoomClones = [];
   }
 
   _lerp(start, end, t) {

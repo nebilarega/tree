@@ -159,6 +159,49 @@ body.locked {
   transform: translateY(0);
 }
 
+/* White + black stroke invert: light type on bark, dark type on sky,
+   with an opposite edge so mid-green/apple doesn't swallow glyphs. */
+body.apple-zoom {
+  isolation: isolate;
+}
+
+body.apple-zoom #content {
+  mix-blend-mode: difference;
+}
+
+body.apple-zoom .section-content.visible {
+  transform: none;
+}
+
+body.apple-zoom .section-content.visible h1,
+body.apple-zoom .section-content.visible h2 {
+  color: #ffffff;
+  -webkit-text-stroke: 1.15px #111111;
+  paint-order: stroke fill;
+}
+
+body.apple-zoom .section-content.visible p {
+  color: #ffffff;
+  -webkit-text-stroke: 0.7px #111111;
+  paint-order: stroke fill;
+}
+
+body.apple-zoom .section-content.visible h1 .highlight,
+body.apple-zoom .section-content.visible h2 .highlight {
+  color: #ffffff;
+}
+
+body.apple-zoom .apple-zoom-ui-hidden {
+  visibility: hidden;
+}
+
+.apple-zoom-ui-clone {
+  position: fixed;
+  margin: 0 !important;
+  z-index: 5;
+  pointer-events: none;
+}
+
 /* Badge style */
 .section-badge {
   font-size: 0.75rem;
