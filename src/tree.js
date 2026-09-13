@@ -772,6 +772,196 @@ export class Tree {
     );
   }
 
+  _getStage2ShootScale(growthValue) {
+    if (growthValue < 0.28 || growthValue >= 0.75) return 0;
+    if (growthValue < 0.5) {
+      return THREE.MathUtils.smoothstep(growthValue, 0.28, 0.5);
+    }
+    if (growthValue <= 0.55) return 1;
+    return 1 - THREE.MathUtils.smoothstep(growthValue, 0.55, 0.75);
+  }
+
+  _decorateShootLikeStage1(curve, rStart, rEnd, leafBaseScale, flipX = false) {
+    const sx = flipX ? -1 : 1;
+    const along = [
+      {
+        t: 0.32,
+        dir: new THREE.Vector3(-0.78 * sx, 0.58, 0.24),
+        scale: 1.26,
+        face: new THREE.Vector3(-0.15 * sx, 0.5, 0.85),
+      },
+      {
+        t: 0.68,
+        dir: new THREE.Vector3(-0.72 * sx, 0.66, 0.2),
+        scale: 0.95,
+        face: new THREE.Vector3(-0.12 * sx, 0.52, 0.84),
+      },
+      {
+        t: 0.38,
+        dir: new THREE.Vector3(0.55 * sx, 0.8, 0.22),
+        scale: 1.22,
+        face: new THREE.Vector3(0.1 * sx, 0.5, 0.86),
+      },
+      {
+        t: 0.76,
+        dir: new THREE.Vector3(0.48 * sx, 0.85, 0.2),
+        scale: 0.92,
+        face: new THREE.Vector3(0.1 * sx, 0.52, 0.85),
+      },
+    ];
+
+    for (const spec of along) {
+      const t = spec.t;
+      const p = curve.getPointAt(t);
+      const r = THREE.MathUtils.lerp(rStart, rEnd, t);
+      const dir = spec.dir.clone().normalize();
+      this._addSaplingLeaf(
+        p.clone().addScaledVector(dir, r * 0.65),
+        dir,
+        leafBaseScale * spec.scale,
+        0.0,
+        this.saplingLeafTransforms.length,
+        spec.face,
+      );
+    }
+
+    const tip = curve.getPointAt(1);
+    const crown = [
+      [new THREE.Vector3(0.05, 0.98, 0.15), 1.15, new THREE.Vector3(0.0, 0.4, 0.91)],
+      [new THREE.Vector3(-0.48 * sx, 0.85, 0.18), 1.02, new THREE.Vector3(-0.15 * sx, 0.5, 0.85)],
+      [new THREE.Vector3(0.46 * sx, 0.86, 0.16), 1.02, new THREE.Vector3(0.15 * sx, 0.5, 0.85)],
+      [new THREE.Vector3(0.08, 0.88, 0.46), 0.95, new THREE.Vector3(0.0, 0.45, 0.89)],
+    ];
+    for (const [dir, scale, face] of crown) {
+      this._addSaplingLeaf(
+        tip,
+        dir,
+        leafBaseScale * scale,
+        0.0,
+        this.saplingLeafTransforms.length,
+        face,
+      );
+    }
+  }
+
+  _buildStage2Shoots(
+    growthValue,
+    baseTrunkStart,
+    baseTrunkDir,
+    currentTrunkLen,
+    currentTrunkRadius,
+    calculatedInternalGrowth,
+  ) {
+    const s = this._getStage2ShootScale(growthValue);
+    if (s <= 0.001) return;
+
+    const wobble = calculatedInternalGrowth * 2.2;
+    const trunkCurve = new THREE.CubicBezierCurve3(
+      baseTrunkStart,
+      new THREE.Vector3()
+        .copy(baseTrunkStart)
+        .addScaledVector(baseTrunkDir, currentTrunkLen * 0.35),
+      new THREE.Vector3()
+        .copy(baseTrunkStart)
+        .addScaledVector(baseTrunkDir, currentTrunkLen * 0.7)
+        .add(new THREE.Vector3(wobble, 0, wobble * 0.5)),
+      new THREE.Vector3()
+        .copy(baseTrunkStart)
+        .addScaledVector(baseTrunkDir, currentTrunkLen),
+    );
+
+    const k = currentTrunkLen * s * 0.55;
+    const leafScale = 0.5 * s;
+    const radiusAt = (t) =>
+      THREE.MathUtils.lerp(currentTrunkRadius, currentTrunkRadius * 0.45, t);
+
+    const makeShoot = (t, outward, offsets, radiusMul, flipX) => {
+      const parentR = radiusAt(t);
+      const origin = trunkCurve
+        .getPointAt(t)
+        .addScaledVector(outward.clone().normalize(), parentR * 0.55);
+      const points = [origin.clone()];
+      for (const o of offsets) {
+        points.push(
+          origin.clone().add(new THREE.Vector3(o[0], o[1], o[2]).multiplyScalar(k)),
+        );
+      }
+      const r0 = Math.max(0.016, parentR * radiusMul * 0.72);
+      const r1 = Math.max(0.007, r0 * 0.28);
+      const curve = new THREE.CatmullRomCurve3(points, false, "catmullrom", 0.5);
+      this.branchGeometries.push(
+        this._createBranchGeometry(curve, r0, r1, parentR, 16, 10, 1, true),
+      );
+      this._decorateShootLikeStage1(curve, r0, r1, leafScale, flipX);
+    };
+
+    // Left, right, middle; the rear shoot stays as-is.
+    makeShoot(
+      0.56,
+      new THREE.Vector3(-0.75, 0.22, 0.42),
+      [
+        [-0.16, 0.22, 0.08],
+        [-0.34, 0.5, 0.14],
+        [-0.3, 0.82, 0.12],
+      ],
+      0.58,
+      false,
+    );
+    makeShoot(
+      0.46,
+      new THREE.Vector3(0.84, 0.2, -0.2),
+      [
+        [0.14, 0.16, -0.04],
+        [0.3, 0.4, -0.08],
+        [0.34, 0.62, -0.05],
+      ],
+      0.5,
+      true,
+    );
+    makeShoot(
+      0.7,
+      new THREE.Vector3(0.05, 0.55, 0.38),
+      [
+        [0.02, 0.2, 0.06],
+        [0.03, 0.44, 0.1],
+        [0.02, 0.66, 0.12],
+      ],
+      0.42,
+      false,
+    );
+    makeShoot(
+      0.4,
+      new THREE.Vector3(0.3, 0.16, -0.78),
+      [
+        [0.08, 0.12, -0.1],
+        [0.16, 0.3, -0.2],
+        [0.18, 0.46, -0.24],
+      ],
+      0.4,
+      true,
+    );
+
+    // Botanical leaves on the tip of the main trunk
+    const trunkTip = trunkCurve.getPointAt(1);
+    const trunkTipR = radiusAt(1);
+    const crown = [
+      [new THREE.Vector3(0.05, 0.98, 0.15), 1.12, new THREE.Vector3(0.0, 0.4, 0.91)],
+      [new THREE.Vector3(-0.48, 0.85, 0.18), 1.0, new THREE.Vector3(-0.15, 0.5, 0.85)],
+      [new THREE.Vector3(0.46, 0.86, 0.16), 1.0, new THREE.Vector3(0.15, 0.5, 0.85)],
+      [new THREE.Vector3(0.08, 0.88, 0.46), 0.92, new THREE.Vector3(0.0, 0.45, 0.89)],
+    ];
+    for (const [dir, scale, face] of crown) {
+      this._addSaplingLeaf(
+        trunkTip.clone().addScaledVector(dir, trunkTipR * 0.4),
+        dir,
+        leafScale * scale,
+        0.0,
+        this.saplingLeafTransforms.length,
+        face,
+      );
+    }
+  }
+
   rebuild(growthValue) {
     const startTime = performance.now();
 
@@ -839,6 +1029,15 @@ export class Tree {
 
     // Build the realistic Stage 1 sapling branches & leaves (separated from L-system)
     this._buildSaplingStage(
+      growthValue,
+      baseTrunkStart,
+      baseTrunkDir,
+      currentTrunkLen,
+      currentTrunkRadius,
+      calculatedInternalGrowth,
+    );
+
+    this._buildStage2Shoots(
       growthValue,
       baseTrunkStart,
       baseTrunkDir,
