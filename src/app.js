@@ -5,7 +5,6 @@ import { WateringCanSystem } from "./watering.js";
 import { CloudSystem } from "./cloudSystem.js";
 import { FloatingLeavesSystem } from "./floatingLeaves.js";
 import { mountIcons } from "./icons.js";
-import { fpsValEl, rebuildValEl } from "./ui.js";
 import { APPLE_COLORS, PROJECTS } from "./projects.js";
 import * as THREE from "three";
 
@@ -16,8 +15,6 @@ class App {
     this.lastRebuildGrowth = 0.0;
     this.pendingGrowth = null;
     this.growthStep = 0.008;
-    this.lastFpsUpdate = 0;
-    this.framesCount = 0;
     this.lastTimestamp = 0;
 
     // Transition State
@@ -140,7 +137,13 @@ class App {
     // Social Box Close Button
     const closeBtn = document.querySelector("#social-box .close-btn");
     if (closeBtn) {
-      closeBtn.addEventListener("click", () => this.closeSocialBox());
+      const close = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.closeSocialBox();
+      };
+      closeBtn.addEventListener("click", close);
+      closeBtn.addEventListener("touchend", close, { passive: false });
     }
 
     const homeLink = document.getElementById("home-link");
@@ -156,7 +159,6 @@ class App {
     }
 
     requestAnimationFrame((timestamp) => {
-      this.lastFpsUpdate = timestamp;
       this.lastTimestamp = timestamp;
       this.animate(timestamp);
     });
@@ -231,22 +233,36 @@ class App {
   handleTouchEnd(e) {
     const touch = e.changedTouches[0];
     const deltaY = this.touchStartY - touch.clientY;
+    const isTap = Math.abs(deltaY) <= this.touchThreshold;
+    const tappedUi = e.target.closest("#social-box, #main-nav, a, button");
 
-    if (Math.abs(deltaY) <= this.touchThreshold) {
+    if (isTap) {
       this.mouse.x = (touch.clientX / window.innerWidth) * 2 - 1;
       this.mouse.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+
+      if (tappedUi) return;
+
       if (this.currentGrowth >= 0.9 && !this.isTransitioning) {
         const fruitData = this.getFruitUnderCursor();
         if (fruitData) {
           this.focusOnApple(fruitData);
           return;
         }
+        if (this.panningToApple) {
+          this.closeSocialBox();
+          return;
+        }
       }
     }
 
-    if (this.isTransitioning || this.panningToApple) return;
+    if (this.isTransitioning) return;
 
-    if (Math.abs(deltaY) > this.touchThreshold) {
+    if (this.panningToApple) {
+      if (!isTap) this.closeSocialBox();
+      return;
+    }
+
+    if (!isTap) {
       if (deltaY > 0 && this.currentSectionIndex < this.sections.length - 1) {
         this.goToSection(this.currentSectionIndex + 1);
       } else if (deltaY < 0 && this.currentSectionIndex > 0) {
@@ -315,13 +331,14 @@ class App {
   }
 
   handleClick(e) {
+    if (e.target.closest("#social-box, #main-nav, a, button")) return;
     if (this.currentGrowth < 0.9 || this.isTransitioning) return;
 
     const fruitData = this.getFruitUnderCursor();
 
     if (fruitData) {
       this.focusOnApple(fruitData);
-    } else {
+    } else if (this.panningToApple) {
       this.closeSocialBox();
     }
   }
@@ -442,7 +459,6 @@ class App {
 
   animate(timestamp) {
     requestAnimationFrame((t) => this.animate(t));
-    this.framesCount++;
 
     const dt = (timestamp - this.lastTimestamp) / 1000;
     this.lastTimestamp = timestamp;
@@ -454,15 +470,6 @@ class App {
       if (Math.abs(this.targetScrollY - this.currentScrollY) < 50) {
         this.updateSectionVisibility();
       }
-    }
-
-    if (timestamp > this.lastFpsUpdate + 500) {
-      const fps = Math.round(
-        (this.framesCount * 1000) / (timestamp - this.lastFpsUpdate),
-      );
-      if (fpsValEl) fpsValEl.innerText = fps;
-      this.lastFpsUpdate = timestamp;
-      this.framesCount = 0;
     }
 
     const peakHeight =
@@ -583,13 +590,6 @@ class App {
         } else if (duration < 8.0) {
           // Fast CPU: decrease throttle down to 0.01 for buttery smooth animation
           this.rebuildThrottle = Math.max(this.rebuildThrottle - 0.002, 0.01);
-        }
-
-        if (rebuildValEl) {
-          const appleCount = this.tree.fruitData
-            ? this.tree.fruitData.length
-            : 0;
-          rebuildValEl.innerText = `${duration.toFixed(2)}ms (Throttle: ${this.rebuildThrottle.toFixed(3)}) | Apples: ${appleCount}`;
         }
       }
     }

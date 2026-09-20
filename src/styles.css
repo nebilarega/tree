@@ -513,6 +513,27 @@ section:nth-child(even) .skill-cards-row {
     bottom: 1.25rem;
     font-size: 0.68rem;
   }
+
+  #social-box {
+    top: auto;
+    bottom: 1.5rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+    transform: translateY(24px);
+  }
+
+  #social-box.visible {
+    transform: translateY(0);
+  }
+
+  #social-box .close-btn {
+    width: 44px;
+    height: 44px;
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 1.35rem;
+  }
 }
 
 /* Custom Layout Tweaks for scroll snaps */
@@ -764,6 +785,9 @@ section:nth-child(even) .section-content {
   position: fixed;
   bottom: 2rem;
   left: 50%;
+  width: max-content;
+  max-width: none;
+  white-space: nowrap;
   transform: translateX(-50%);
   font-family: var(--font-body);
   font-size: 0.75rem;
@@ -786,17 +810,6 @@ section:nth-child(even) .section-content {
     opacity: 0.9;
     transform: translate(-50%, -4px);
   }
-}
-
-#perf-monitor {
-  position: fixed;
-  top: 10px;
-  right: 10px;
-  z-index: 100;
-  font-size: 9px;
-  color: #94a3b8;
-  opacity: 0.4;
-  pointer-events: none;
 }
 
 /* High-End Loader Styling */

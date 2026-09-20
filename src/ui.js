@@ -1,6 +1,3 @@
-export const fpsValEl = document.getElementById("fps-val");
-export const rebuildValEl = document.getElementById("rebuild-val");
-
 export function setupGrowthButtons(onChange) {
   const stageButtons = document.querySelectorAll(".stage-btn");
   stageButtons.forEach((btn) => {
