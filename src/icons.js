@@ -11,6 +11,11 @@ import {
   Play,
   Check,
   Lock,
+  Layers,
+  Bot,
+  Search,
+  Rocket,
+  Package,
 } from 'lucide';
 
 const ICON_MAP = {
@@ -25,6 +30,11 @@ const ICON_MAP = {
   play: Play,
   check: Check,
   lock: Lock,
+  layers: Layers,
+  bot: Bot,
+  search: Search,
+  rocket: Rocket,
+  package: Package,
 };
 
 /**

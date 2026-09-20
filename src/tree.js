@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import * as BufferGeometryUtils from "three/addons/utils/BufferGeometryUtils.js";
+import { PROJECT_IDS } from "./projects.js";
 
 const leafPalettes = [
   new THREE.Color("#4a8505"), // Vibrant fresh green
@@ -1127,12 +1128,6 @@ export class Tree {
   }
 
   _renderFruits(individualScale = 1.0) {
-    const socialConfigs = [
-      { name: "LinkedIn", color: "#0077b5" },
-      { name: "GitHub", color: "#111111" },
-      { name: "Portfolio", color: "#ff6666" },
-    ];
-
     const poolSize = this.fruitTransforms.length;
     if (poolSize === 0) return;
 
@@ -1140,24 +1135,21 @@ export class Tree {
       a.path.localeCompare(b.path),
     );
 
-    const socialIndices = [
-      Math.floor(poolSize * 0.4),
-      Math.floor(poolSize * 0.5),
-      Math.floor(poolSize * 0.6),
-    ];
-
     const numTotalApples = 25;
+    const count = Math.min(numTotalApples, poolSize);
+    const used = new Set();
     const indicesToRender = [];
 
-    socialIndices.forEach((idx) =>
-      indicesToRender.push({ index: idx, isSocial: true }),
-    );
-    const fillerCount = numTotalApples - socialIndices.length;
-    for (let i = 0; i < fillerCount; i++) {
-      const idx = Math.floor((i / fillerCount) * (poolSize - 1));
-      if (!socialIndices.includes(idx)) {
-        indicesToRender.push({ index: idx, isSocial: false });
+    for (let i = 0; i < count; i++) {
+      let idx = Math.round((i / Math.max(count - 1, 1)) * (poolSize - 1));
+      while (used.has(idx) && used.size < poolSize) {
+        idx = (idx + 1) % poolSize;
       }
+      used.add(idx);
+      indicesToRender.push({
+        index: idx,
+        project: PROJECT_IDS[i % PROJECT_IDS.length],
+      });
     }
 
     this.fruitInstancedMesh = new THREE.InstancedMesh(
@@ -1199,15 +1191,9 @@ export class Tree {
       this.fruitInstancedMesh.setMatrixAt(i, matrix);
       this.haloInstancedMesh.setMatrixAt(i, matrix);
 
-      let socialConfig = null;
-      if (item.isSocial) {
-        const sIdx = socialIndices.indexOf(item.index);
-        socialConfig = socialConfigs[sIdx];
-      }
-
       this.fruitData[i] = {
         path: fruitData.path,
-        social: socialConfig ? socialConfig.name : null,
+        social: item.project,
         matrix: matrix.clone(),
       };
     });

@@ -6,13 +6,8 @@ import { CloudSystem } from "./cloudSystem.js";
 import { FloatingLeavesSystem } from "./floatingLeaves.js";
 import { mountIcons } from "./icons.js";
 import { fpsValEl, rebuildValEl } from "./ui.js";
+import { APPLE_COLORS, PROJECTS } from "./projects.js";
 import * as THREE from "three";
-
-const APPLE_COLORS = {
-  LinkedIn: "#0077b5",
-  GitHub: "#111111",
-  Portfolio: "#ff6666",
-};
 
 class App {
   constructor() {
@@ -49,24 +44,7 @@ class App {
     // Social UI state
     this.isSocialBoxOpen = false;
     this.pendingSocialType = null; // New: queue the box appearance
-    this.socialData = {
-      LinkedIn: {
-        title: "LinkedIn",
-        desc: "Professional background, career history, and how to reach me.",
-        url: "https://linkedin.com",
-      },
-      GitHub: {
-        title: "GitHub",
-        desc: "Open-source projects, experiments, and the code behind this portfolio.",
-        url: "https://github.com",
-      },
-      Portfolio: {
-        title: "Selected Work",
-        desc: "Case studies and write-ups on specific projects and architectural decisions.",
-        url: "#",
-        cta: "VIEW SELECTED WORK",
-      },
-    };
+    this.socialData = Object.fromEntries(PROJECTS.map((p) => [p.id, p]));
     this._appleZoomClones = [];
 
     // Custom Smooth Scroll State
